@@ -1,4 +1,12 @@
-捋一下最近学习的docker相关的知识，目前主要用到的就是docker、docker-compose和Portainer。
+portainer注意下：
 
-1、docker常用操作
+portainer  默认读取的是控制台日志，需要在logback-spring.xml里面打开控制台输出。
+
+```xml
+   <root level="INFO">
+        <appender-ref ref="console"/>
+        <appender-ref ref="FILE_INFO"/>
+        <appender-ref ref="FILE_ERROR"/>
+    </root>
+```
 

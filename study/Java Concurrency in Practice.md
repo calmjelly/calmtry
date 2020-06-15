@@ -128,3 +128,201 @@ Java并发编程实践里面给出的对象不可变定义：
 ### 监视器模式
 
 对累的方法使用synchronized加锁，建议使用一个私有的锁对象而不是对象的内置锁。
+
+
+
+# 基础构建模块
+
+## 同步容器类
+
+Vector ，Stack，HashTable以及Collections提供的同步集合类:
+
+```java
+List list = Collections.synchronizedList(new ArrayList());
+Set set = Collections.synchronizedSet(new HashSet());
+Map map = Collections.synchronizedMap(new HashMap());
+```
+
+会严重降低并发性，吞吐量会急剧降低。
+
+## 并发容器类
+
+
+
+CopyOnWriteArrayList
+
+这系列容器基本原理都是读写分离，读操作无锁，写操作会另起一个副本。所以叫“写时复制(CopyOnWrite)”。应对读多写少的场景。
+
+在每次修改时候，都会创建并重新发布一个新的容器副本，从而实现读写分离。当然，这种情况下，读取的可能不是最新值。
+
+
+
+CopyOnWriteArraySet
+
+待补充
+
+
+
+ConcurrentHashMap
+
+JDK8之前，采用分段锁实现，
+
+它不会抛出ConCurrentModificationException，在迭代过程中不需加锁，它具有弱一致性，不具备快速失败机制，可以容忍并发修改。所以例如size() 和 isEmpty() 方法可能返回已经过期的值。
+
+对于一些复合操作，已经实现为原子操作：
+
+仅当没有相应的key才会插入
+
+```java
+V putIfAbsent(K key, V value);
+```
+
+remove：仅当key被映射到V时候才移除。
+
+```java
+boolean remove(Object key, Object value);
+```
+
+replace：对于某个key而言，仅当它对应的 value值和预期值相等时才会更新value。
+
+```java
+ boolean replace(K key, V oldValue, V newValue);
+```
+
+等等。
+
+ConcurrentSkipListMap
+
+待补充
+
+ConcurrentSkipListSet
+
+待补充
+
+ConcurrentLinkedQueue
+
+待补充
+
+ConsurrentLinkedDeque
+
+待补充
+
+ArrayBlockingQueue
+
+阻塞队列BlockingQueue接口，基本方法有4个，put、take以及支持定时的offer、poll。
+
+take从队列中拿走数据，如果队列为空则阻塞自身，一直到队列中有数据可取才会自动唤醒该线程。
+
+put 将数据放入队列，如果队列已满则阻塞自身，一直到队列有空间可以放数据为止。
+
+```java
+//BlockingQueue接口的基本方法
+void put(E e) throws InterruptedException;
+boolean offer(E e, long timeout, TimeUnit unit) throws InterruptedException;
+E take() throws InterruptedException;
+E poll(long timeout, TimeUnit unit) throws InterruptedException;
+```
+
+很容易想到生产者消费者模型。
+
+生产者与消费者模型-->线程池与工作队列，Executor任务执行框架就是这样的设计思想。
+
+如果队列是无界的，那么put操作不会阻塞，但可能会抛出OOM异常。
+
+阿里巴巴开发手册里面，提到不能使用Executors创建线程池。建议手动创建，示例：
+
+```java
+package com.example.demo;
+//引入google的guava包
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import java.util.concurrent.*;
+
+public class MyTest {
+    public static void main(String[] args) {
+        ThreadFactory namedThreadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("demo-pool-%d").build();
+        ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("线程名称-%s").build();
+        ExecutorService pool = new ThreadPoolExecutor(5, 200, 0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<Runnable>(1024), namedThreadFactory, new ThreadPoolExecutor.AbortPolicy());
+        pool.execute(()-> System.out.println(Thread.currentThread().getName()));
+        pool.shutdown();//gracefully shutdown
+    }
+}
+```
+
+方法解释：
+
+```java
+public ThreadPoolExecutor(int corePoolSize, //线程池核心线程数量
+                          int maximumPoolSize,//线程池最大数量
+                          long keepAliveTime,//空闲线程存活时间
+                          TimeUnit unit,//时间单位
+                          BlockingQueue<Runnable> workQueue,//线程池所使用的缓冲队列
+                          ThreadFactory threadFactory,//线程池创建线程使用的工厂
+                          RejectedExecutionHandler handler)//线程池对拒绝任务的处理策略
+```
+
+Executors.newCachedThreadPool
+
+```java
+   public static ExecutorService newCachedThreadPool() {
+        return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+                                      60L, TimeUnit.SECONDS,
+                                      new SynchronousQueue<Runnable>());
+    }
+```
+
+核心线程池数量为0，但是线程池最大数量没有限制(Integer.MAX_VALUE),提交一个新任务时，不创建核心线程。由于SynchronousQueue 是一种非常特殊的阻塞队列，他没有实际的容量，甚至连一个队列的容量都没有。（没有数据缓冲），每个put操作必须等待take操作，反过来也一样。所以可以理解为这个队列时钟都是满的，所以最终都是创建非核心线程来执行任务，由于线程池最大容量没做限制，所以可以认为线程是可以无限创建的，可能会引发OOM异常。
+
+Executors.newSingleThreadExecutor
+
+```java
+    public static ExecutorService newSingleThreadExecutor() {
+        return new FinalizableDelegatedExecutorService
+            (new ThreadPoolExecutor(1, 1,
+                                    0L, TimeUnit.MILLISECONDS,
+                                    new LinkedBlockingQueue<Runnable>()));
+    }
+```
+
+**注意这里使用了一个无界(Integer.MAX_VALUE)的阻塞队列**，如果不断地的提交任务，超过了核心线程的数量，就会暂时放入阻塞队列中，因为无界，所以可以不限制的放入任务，可能会引发OOM。由于队列是无界限的，所以根本就不会创建非核心线程。
+
+Executors.newFixedThreadPool
+
+```java
+  public static ExecutorService newFixedThreadPool(int nThreads) {
+        return new ThreadPoolExecutor(nThreads, nThreads,
+                                      0L, TimeUnit.MILLISECONDS,
+                                      new LinkedBlockingQueue<Runnable>());
+    }
+```
+
+和上一个差不多，使用了无界队列存放任务，所以可能会堆积大量任务从而引发OOM异常。
+
+LinkedBlockingQueue
+
+待补充
+
+LinkedBlockingDeque
+
+待补充
+
+SynchronousQueue
+
+待补充
+
+PriorityBlockingQueue
+
+待补充
+
+LinkedTransferQueue
+
+待补充
+
+DelayQueue
+
+待补充
+
+
+
