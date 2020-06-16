@@ -273,7 +273,7 @@ Executors.newCachedThreadPool
     }
 ```
 
-核心线程池数量为0，但是线程池最大数量没有限制(Integer.MAX_VALUE),提交一个新任务时，不创建核心线程。由于SynchronousQueue 是一种非常特殊的阻塞队列，他没有实际的容量，甚至连一个队列的容量都没有。（没有数据缓冲），每个put操作必须等待take操作，反过来也一样。所以可以理解为这个队列时钟都是满的，所以最终都是创建非核心线程来执行任务，由于线程池最大容量没做限制，所以可以认为线程是可以无限创建的，可能会引发OOM异常。
+核心线程池数量为0，但是线程池最大数量没有限制(Integer.MAX_VALUE),提交一个新任务时，不创建核心线程。由于SynchronousQueue 是一种非常特殊的阻塞队列，他没有实际的容量，甚至连一个队列的容量都没有。（没有数据缓冲），每个put操作必须等待take操作，反过来也一样（和Exchanger提供的作用非常相似）。所以可以理解为这个队列时钟都是满的，所以最终都是创建非核心线程来执行任务，由于线程池最大容量没做限制，所以可以认为线程是可以无限创建的，可能会引发OOM异常。
 
 Executors.newSingleThreadExecutor
 
@@ -325,4 +325,165 @@ DelayQueue
 待补充
 
 
+
+### 串行线程封闭
+
+生产者-消费者通过阻塞队列，实现了串行线程封闭，对象的所有权从生产者安全地交付给消费者。线程封闭对象只能由单个线程拥有，但是通过这种模式安全地转移了所有权。
+
+这里的关键在于，确保只有一个线程能接受被转移的对象。
+
+使用阻塞队列简化 生产者-消费者设计：
+
+```
+//生产者：
+...
+
+while(true){
+//生产产品
+Production production=new Production();
+//放入阻塞队列
+blockingQueue.put(production);
+}
+...
+
+//消费者
+...
+while(true){
+	Production production = blockingQueue.take();
+	doSomething(production);
+}
+...
+```
+
+生产者消费者模型可以用多种方式实现，例如wait-notify、Semaphore、Lock等：详情参考 [生产者消费者的五种实现方式-Java](https://juejin.im/entry/596343686fb9a06bbd6f888c "With a Title"). 
+
+### 双端队列与工作密取
+
+在生产者-消费者设计中，所有的消费者共享一个工作队列，在工作密取设计中，每个消费者拥有自己的双端队列。
+
+如果一个消费者完成了自己双端队列中的全部工作，可以从其他消费者的双端队列**末尾**秘密的获取工作。
+
+工作密取模式更适合即使生产者又是消费者对的情况->当执行某个工作任务的时候，会出现更多的工作。
+
+参考代码：
+
+```
+//来源：https://houbb.github.io/2019/01/18/jcip-14-deque-workstealing
+/**
+ * 基本思路是维护一个阻塞队列数组，开始时候消费者按照自己规定的编号消费自己的双端队列，
+ * 如果消费完成，那么可以选择数组中另外一个双端队列进行消费。
+ */
+ public interface WorkStealingEnableChannel<P> extends Chanel<P> {
+    P take(BlockingDeque<P> preferredQueue) throws InterruptedException;
+}
+
+public class WorkStealingChannel<P> implements WorkStealingEnableChannel<P> {
+    private final BlockingDeque<P>[] managedQueues;
+
+    public WorkStealingChannel(BlockingDeque<P>[] managedQueues) {
+        super();
+        this.managedQueues = managedQueues;
+    }
+
+    @Override
+    public P take() throws InterruptedException {
+        return take(null);
+    }
+
+    @Override
+    public void put(P product) throws InterruptedException {
+        int targetIndex = (product.hashCode() % managedQueues.length);
+        BlockingQueue<P> targetQueue = managedQueues[targetIndex];
+        targetQueue.put(product);
+    }
+
+    @Override
+    public P take(BlockingDeque<P> preferredQueue) throws InterruptedException {
+        BlockingDeque<P> targetQueue = preferredQueue;
+        P product = null;
+        if (null != targetQueue) {
+            product = targetQueue.poll();
+        }
+        int queueIndex = -1;
+        while (null != product) {
+            queueIndex = (queueIndex + 1) % managedQueues.length;
+            targetQueue = managedQueues[queueIndex];
+            product = targetQueue.pollLast();
+            if (preferredQueue == targetQueue) {
+                break;
+            }
+        }
+        if (null == product) {
+            queueIndex = (int) (System.currentTimeMillis() % managedQueues.length);
+            targetQueue = managedQueues[queueIndex];
+            product = targetQueue.pollLast();
+            System.out.println("stealed from " + queueIndex + ": " + product);
+        }
+        return product;
+    }
+}
+
+public class WorkStealingExample {
+    private final WorkStealingEnableChannel<String> channel;
+    private final TerminationToken token = new TerminationToken();
+
+    public static void main(String[] args) throws InterruptedException {
+        WorkStealingExample wse = new WorkStealingExample();
+        Thread.sleep(3500);
+    }
+
+    public WorkStealingExample() {
+        int nCPU = Runtime.getRuntime().availableProcessors();
+        int consumerCount = nCPU / 2 + 1;
+        BlockingDeque<String>[] managedQueues = new LinkedBlockingDeque[consumerCount];
+        channel = new WorkStealingChannel<String>(managedQueues);
+        Consumer[] consumers = new Consumer[consumerCount];
+        for (int i = 0; i < consumerCount; i++) {
+            managedQueues[i] = new LinkedBlockingDeque<String>();
+            consumers[i] = new Consumer(token, managedQueues[i]);
+        }
+        for (int i = 0; i < nCPU; i++) {
+            new Producer().start();
+        }
+        for (int i = 0; i < consumerCount; i++) {
+            consumers[i].start();
+        }
+    }
+
+    private class Producer extends AbstractTerminatableThread {
+        private int i = 0;
+
+        @Override
+        protected void doRun() throws Exception {
+            channel.put(String.valueOf(i++));
+            Thread.sleep(10);
+            token.reservations.incrementAndGet();
+        }
+    }
+
+    private class Consumer extends AbstractTerminatableThread {
+        private final BlockingDeque<String> workQueue;
+
+        public Consumer(TerminationToken token, BlockingDeque<String> workQueue) {
+            super(token);
+            this.workQueue = workQueue;
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            String product = channel.take();
+            if (product != null) {
+            }
+            System.out.println("Processing product:" + product);
+            try {
+                Thread.sleep(new Random().nextInt(50));
+            } catch (Exception e) {
+            } finally {
+                token.reservations.decrementAndGet();
+            }
+        }
+    }
+}
+ 
+```
 
