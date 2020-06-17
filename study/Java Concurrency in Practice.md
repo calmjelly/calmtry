@@ -367,7 +367,7 @@ while(true){
 
 参考代码：
 
-```
+```java
 //来源：https://houbb.github.io/2019/01/18/jcip-14-deque-workstealing
 /**
  * 基本思路是维护一个阻塞队列数组，开始时候消费者按照自己规定的编号消费自己的双端队列，
@@ -487,3 +487,4 @@ public class WorkStealingExample {
  
 ```
 
+## 阻塞方法与中断方法
