@@ -223,82 +223,7 @@ E take() throws InterruptedException;
 E poll(long timeout, TimeUnit unit) throws InterruptedException;
 ```
 
-很容易想到生产者消费者模型。
 
-生产者与消费者模型-->线程池与工作队列，Executor任务执行框架就是这样的设计思想。
-
-如果队列是无界的，那么put操作不会阻塞，但可能会抛出OOM异常。
-
-阿里巴巴开发手册里面，提到不能使用Executors创建线程池。建议手动创建，示例：
-
-```java
-package com.example.demo;
-//引入google的guava包
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import java.util.concurrent.*;
-
-public class MyTest {
-    public static void main(String[] args) {
-        ThreadFactory namedThreadFactory = new ThreadFactoryBuilder()
-                .setNameFormat("demo-pool-%d").build();
-        ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("线程名称-%s").build();
-        ExecutorService pool = new ThreadPoolExecutor(5, 200, 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<Runnable>(1024), namedThreadFactory, new ThreadPoolExecutor.AbortPolicy());
-        pool.execute(()-> System.out.println(Thread.currentThread().getName()));
-        pool.shutdown();//gracefully shutdown
-    }
-}
-```
-
-方法解释：
-
-```java
-public ThreadPoolExecutor(int corePoolSize, //线程池核心线程数量
-                          int maximumPoolSize,//线程池最大数量
-                          long keepAliveTime,//空闲线程存活时间
-                          TimeUnit unit,//时间单位
-                          BlockingQueue<Runnable> workQueue,//线程池所使用的缓冲队列
-                          ThreadFactory threadFactory,//线程池创建线程使用的工厂
-                          RejectedExecutionHandler handler)//线程池对拒绝任务的处理策略
-```
-
-Executors.newCachedThreadPool
-
-```java
-   public static ExecutorService newCachedThreadPool() {
-        return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
-                                      60L, TimeUnit.SECONDS,
-                                      new SynchronousQueue<Runnable>());
-    }
-```
-
-核心线程池数量为0，但是线程池最大数量没有限制(Integer.MAX_VALUE),提交一个新任务时，不创建核心线程。由于SynchronousQueue 是一种非常特殊的阻塞队列，他没有实际的容量，甚至连一个队列的容量都没有。（没有数据缓冲），每个put操作必须等待take操作，反过来也一样（和Exchanger提供的作用非常相似）。所以可以理解为这个队列时钟都是满的，所以最终都是创建非核心线程来执行任务，由于线程池最大容量没做限制，所以可以认为线程是可以无限创建的，可能会引发OOM异常。
-
-Executors.newSingleThreadExecutor
-
-```java
-    public static ExecutorService newSingleThreadExecutor() {
-        return new FinalizableDelegatedExecutorService
-            (new ThreadPoolExecutor(1, 1,
-                                    0L, TimeUnit.MILLISECONDS,
-                                    new LinkedBlockingQueue<Runnable>()));
-    }
-```
-
-**注意这里使用了一个无界(Integer.MAX_VALUE)的阻塞队列**，如果不断地的提交任务，超过了核心线程的数量，就会暂时放入阻塞队列中，因为无界，所以可以不限制的放入任务，可能会引发OOM。由于队列是无界限的，所以根本就不会创建非核心线程。
-
-Executors.newFixedThreadPool
-
-```java
-  public static ExecutorService newFixedThreadPool(int nThreads) {
-        return new ThreadPoolExecutor(nThreads, nThreads,
-                                      0L, TimeUnit.MILLISECONDS,
-                                      new LinkedBlockingQueue<Runnable>());
-    }
-```
-
-和上一个差不多，使用了无界队列存放任务，所以可能会堆积大量任务从而引发OOM异常。
 
 LinkedBlockingQueue
 
@@ -487,4 +412,250 @@ public class WorkStealingExample {
  
 ```
 
-## 阻塞方法与中断方法
+## 同步工具类
+
+### 闭锁
+
+CountDownLatch，类似于发令枪，枪响后线程全部解除阻塞的状态，而且是一次性的。
+
+使用方式1：等待所有子线程就绪后，一起启动。
+
+使用方式2：等待所有子线程工作任务完成后，主线程继续往后执行。
+
+
+
+示例：
+
+启动门和startGate结束门endGate，启动门的初始计数为1，所有线程会先执行一个startGate.await()方法，然后进入等待状态，知道所有县城准备完毕后，主线程调用startGate.countDown()方法放行所有阻塞的线程，然后调用endGate.await()方法等待所有线程执行完毕。所有线程会同时启动执行各自任务，线程执行完工作任务后调用endGate.coutDown()，直到所有线程工作任务都执行完毕后主线程才会继续往后进行。
+
+```java
+public long timeTasks(int nThreads, final Runnable task) throws InterruptedException {
+    final CountDownLatch startGate = new CountDownLatch(1);
+    final CountDownLatch endGate = new CountDownLatch(nThreads);
+    ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("test-thread-%d").build();
+    ThreadPoolExecutor pool = new ThreadPoolExecutor(nThreads, nThreads, 300, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(1000), threadFactory,new ThreadPoolExecutor.AbortPolicy());
+    for (int i = 0; i < nThreads; i++) {
+        pool.execute(() -> {
+            try {
+                startGate.await();
+                try {
+                    task.run();
+                } finally {
+                    endGate.countDown();
+                }
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
+    }
+    long start = System.currentTimeMillis();
+    startGate.countDown();
+    endGate.await();
+    long end = System.currentTimeMillis();
+    return end - start;
+}
+```
+
+### 信号量
+
+Semaphore，信号量用于控制同时访问某个特定资源的操作数量，
+
+需要时先请求许可，acquire()，如果获得可以继续下一步，没得到则等待。
+
+使用完成后交还许可，release()，一般放在finally里面。
+
+信号量不保证被争抢资源自身的同步性，他只控制可以有几个线程去用这个资源，但是资源自给的同步性、互斥性需要自己来保证。
+信号量不保证同步与互斥！！
+
+仅当初始化许可值为1 时候，信号量才能是个互斥锁。
+
+
+
+### 栅栏
+
+循环栅栏 CyclicBarrier
+
+使一定数量的参与方反复在栅栏位置汇集。
+到达栅栏位置调用await()，会阻塞所有线程必须都到达栅栏位置。到达后栅栏会自动打开。
+await()超时或者调用这个方法的线程被中断，认为栅栏被打破，所有阻塞调用都会终止并抛出异常 BrokenBarrierException。
+成功通过栅栏后，await会给每个线程分配一个唯一的到达索引号
+初始化会给一个数值n，线程调用await方法后会阻塞等待，当n个线程都调用await方法后，栅栏一起放行。
+
+CyclicBarrier的构造函数可以传入一个Runnable，最后到达栅栏的线程会执行这个方法。
+
+```java
+package com.jelly.appinit;
+
+import java.util.concurrent.CyclicBarrier;
+
+public class CyclicBarrierDemo {
+
+    static class TaskThread extends Thread {
+
+        CyclicBarrier barrier;
+
+        public TaskThread(CyclicBarrier barrier) {
+            this.barrier = barrier;
+        }
+
+        @Override
+        public void run() {
+            try {
+                Thread.sleep(1000);
+                System.out.println(getName() + " 到达栅栏 A");
+                barrier.await();
+                System.out.println(getName() + " 冲破栅栏 A");
+
+                Thread.sleep(2000);
+                System.out.println(getName() + " 到达栅栏 B");
+                barrier.await();
+                System.out.println(getName() + " 冲破栅栏 B");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        int threadNum = 5;
+        CyclicBarrier barrier = new CyclicBarrier(threadNum, new Runnable() {
+            
+            @Override
+            public void run() {
+                System.out.println(Thread.currentThread().getName() + " 完成最后任务");
+            }
+        });
+
+        for(int i = 0; i < threadNum; i++) {
+            new TaskThread(barrier).start();
+        }
+    }
+
+}
+```
+
+![img](../img/clipboard.png)
+
+
+
+两方栅栏，Exchanger，作用类似于SynchronousQueue。
+
+举例来说：就是一个线程在完成一定的任务后想与另一个线程交换数据，则第一个先拿出数据的线程会一直等待第二个线程，直到第二个线程拿着数据到来时才能彼此交换对应数据。
+
+
+
+# 任务执行
+
+### 线程池
+
+阿里巴巴开发手册里面，提到不能使用Executors创建线程池。建议手动创建，示例：
+
+```java
+package com.example.demo;
+//引入google的guava包
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import java.util.concurrent.*;
+
+public class MyTest {
+    public static void main(String[] args) {
+        ThreadFactory namedThreadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("demo-pool-%d").build();
+        ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("线程名称-%s").build();
+        ExecutorService pool = new ThreadPoolExecutor(5, 200, 0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<Runnable>(1024), namedThreadFactory, new ThreadPoolExecutor.AbortPolicy());
+        pool.execute(()-> System.out.println(Thread.currentThread().getName()));
+        pool.shutdown();//gracefully shutdown
+    }
+}
+```
+
+方法解释：
+
+```java
+public ThreadPoolExecutor(int corePoolSize, //线程池核心线程数量
+                          int maximumPoolSize,//线程池最大数量
+                          long keepAliveTime,//空闲线程存活时间
+                          TimeUnit unit,//时间单位
+                          BlockingQueue<Runnable> workQueue,//线程池所使用的缓冲队列
+                          ThreadFactory threadFactory,//线程池创建线程使用的工厂
+                          RejectedExecutionHandler handler)//线程池对拒绝任务的处理策略
+```
+
+Executors.newCachedThreadPool
+
+```java
+   public static ExecutorService newCachedThreadPool() {
+        return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+                                      60L, TimeUnit.SECONDS,
+                                      new SynchronousQueue<Runnable>());
+    }
+```
+
+核心线程池数量为0，但是线程池最大数量没有限制(Integer.MAX_VALUE),提交一个新任务时，不创建核心线程。由于SynchronousQueue 是一种非常特殊的阻塞队列，他没有实际的容量，甚至连一个队列的容量都没有。（没有数据缓冲），每个put操作必须等待take操作，反过来也一样（和Exchanger提供的作用非常相似）。所以可以理解为这个队列时钟都是满的，所以最终都是创建非核心线程来执行任务，由于线程池最大容量没做限制，所以可以认为线程是可以无限创建的，可能会引发OOM异常。
+
+Executors.newSingleThreadExecutor
+
+```java
+    public static ExecutorService newSingleThreadExecutor() {
+        return new FinalizableDelegatedExecutorService
+            (new ThreadPoolExecutor(1, 1,
+                                    0L, TimeUnit.MILLISECONDS,
+                                    new LinkedBlockingQueue<Runnable>()));
+    }
+```
+
+**注意这里使用了一个无界(Integer.MAX_VALUE)的阻塞队列**，如果不断地的提交任务，超过了核心线程的数量，就会暂时放入阻塞队列中，因为无界，所以可以不限制的放入任务，可能会引发OOM。由于队列是无界限的，所以根本就不会创建非核心线程。
+
+Executors.newFixedThreadPool
+
+```java
+  public static ExecutorService newFixedThreadPool(int nThreads) {
+        return new ThreadPoolExecutor(nThreads, nThreads,
+                                      0L, TimeUnit.MILLISECONDS,
+                                      new LinkedBlockingQueue<Runnable>());
+    }
+```
+
+和上一个差不多，使用了无界队列存放任务，所以可能会堆积大量任务从而引发OOM异常。
+
+### 线程池的生命周期
+
+JVM仅在所有（非守护）线程全部终止后才会退出。
+
+使用扩展了Executor的ExecutorService接口来管理线程池。
+
+shutdown 平滑关闭线程池：不再接受新任务，等待已提交任务（包括队列中等待的任务）执行完毕后自行退出。
+
+```java
+    /**
+     * Initiates an orderly shutdown in which previously submitted
+     * tasks are executed, but no new tasks will be accepted.
+     * Invocation has no additional effect if already shut down.
+     *
+     * <p>This method does not wait for previously submitted tasks to
+     * complete execution.  Use {@link #awaitTermination awaitTermination}
+     * to do that.
+     *
+     * @throws SecurityException if a security manager exists and
+     *         shutting down this ExecutorService may manipulate
+     *         threads that the caller is not permitted to modify
+     *         because it does not hold {@link
+     *         java.lang.RuntimePermission}{@code ("modifyThread")},
+     *         or the security manager's {@code checkAccess} method
+     *         denies access.
+     */
+    void shutdown();
+```
+
+shutdownNow强制关闭，取消已有的任务，包括在队列中排队的未开始任务。
+
+使用awaitTermination 方法阻塞直到线程池关闭，或者使用isTerminated 轮询判断线程池是否关闭。
+
+```java
+boolean awaitTermination(long timeout, TimeUnit unit)
+        throws InterruptedException;
+```
+
