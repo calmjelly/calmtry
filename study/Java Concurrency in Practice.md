@@ -659,3 +659,51 @@ boolean awaitTermination(long timeout, TimeUnit unit)
         throws InterruptedException;
 ```
 
+### Runnable、Callable和FutureTask
+
+Runnable，没有返回值，线程池使用execute提交。或者也可以使用submit提交获得future对象，通过get方法阻塞主线程直到执行完毕，但是get方法得到的是个null。不能取消执行。
+
+此外，Runnable 不能抛出异常，只能捕获异常。
+
+```java
+@FunctionalInterface
+public interface Runnable {
+    public abstract void run();
+}
+```
+
+因为Runnable接口的run方法本身就没有抛出任何异常，实现Runnable接口重写run方法时候，由于子类抛出异常要小于父类抛出异常，所以实现Runnable重写run方法自然不能够抛出任何异常。
+
+Callable，有返回值，可以抛出异常，线程池必须用submit提交，返回值类型是Future定义的泛型。
+
+```java
+@FunctionalInterface
+public interface Callable<V> {
+  
+    V call() throws Exception;
+}
+```
+
+Callable可以通过调用future.cancel方法取消任务执行。
+
+```java
+   boolean cancel(boolean mayInterruptIfRunning);
+```
+
+非阻塞方法，cancel(false)会取消正在阻塞队列中排队还没有执行的任务，cancel(true)会取消所有任务，包括正在执行的任务。
+
+FutureTask是Future接口的一个唯一实现类，
+
+```java
+public class FutureTask<V> implements RunnableFuture<V> {...}
+
+public interface RunnableFuture<V> extends Runnable, Future<V> {
+    /**
+     * Sets this Future to the result of its computation
+     * unless it has been cancelled.
+     */
+    void run();
+}
+```
+
+FutureTask实现了Runnable、Future接口，所以它作为Runnable提交给线程池执行，也可以作为Future来接受Callable的返回值。
