@@ -707,3 +707,86 @@ public interface RunnableFuture<V> extends Runnable, Future<V> {
 ```
 
 FutureTask实现了Runnable、Future接口，所以它作为Runnable提交给线程池执行，也可以作为Future来接受Callable的返回值。
+
+
+
+### CompletionService接口
+
+完成服务：在使用线程池提交Callable任务时候，可以拿到一个Future对象，如果提交了多个任务，并且需要获取他们的结果做处理，可以使用List<Future<V>> 来存储Future对象，然后在循环中依次处理。如下：
+
+```java
+  ExecutorService pool = new ThreadPoolExecutor(3, 10, 0, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(30), factory, new ThreadPoolExecutor.AbortPolicy());
+        CompletionService<String> service = new ExecutorCompletionService<>(pool);
+        Future<String> future1 = pool.submit(() -> {
+            Thread.sleep(8000);
+            return "4";
+        });
+        Future<String> future2=   pool.submit(() -> {
+            Thread.sleep(1000);
+            return "1";
+        });
+
+        Future<String> future3=   pool.submit(() -> {
+            Thread.sleep(5000);
+            return "3";
+        });
+
+        Future<String> future4=   pool.submit(() -> {
+            Thread.sleep(3000);
+            return "2";
+        });
+        List<Future<String>> list = Lists.newArrayList(future1,future2,future3,future4);
+        for (int i = 0; i < 4; i++) {
+            System.out.println(list.get(i).get());
+        }
+        pool.shutdownNow();
+    }
+
+//输出 4 1 3 2
+```
+
+CompletionService接口的作用是结合了BlockingQueue和Executor。实现类：ExecutorCompletionService,构造器传入一个线程池对象。
+
+提交多个Callable任务后，他会将完成的任务放入内部的阻塞队列中，获取结果只需要调用take或者poll方法即可。如果队列为空，调用take方法会阻塞，直到获取结果为止。
+
+```java
+       ThreadFactory factory = new ThreadFactoryBuilder().setNameFormat("study-%d").build();
+        ExecutorService pool = new ThreadPoolExecutor(3, 10, 0, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(30), factory, new ThreadPoolExecutor.AbortPolicy());
+        CompletionService<String> service = new ExecutorCompletionService<>(pool);
+        service.submit(() -> {
+            Thread.sleep(8000);
+            return "4";
+        });
+        service.submit(() -> {
+            Thread.sleep(1000);
+            return "1";
+        });
+
+        service.submit(() -> {
+            Thread.sleep(5000);
+            return "3";
+        });
+
+        service.submit(() -> {
+            Thread.sleep(3000);
+            return "2";
+        });
+        for (int i = 0; i < 4; i++) {
+            System.out.println(service.take().get());
+        }
+        pool.shutdownNow();
+    }
+//按照任务完成的先后顺序，将Future会放入阻塞队列中
+//输出 1  2  3  4 
+```
+
+CompletionService 可以解决已完成任务得不到及时处理的问题。因为只有已完成的任务才会被加到内部的阻塞队列中。
+
+多个ExecutorCompletionService可以共用同一个Executor，CompletionService可以看作是一组任务对象的句柄。
+
+### 任务的时间限制
+
+
+
