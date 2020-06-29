@@ -684,7 +684,7 @@ public interface Callable<V> {
 }
 ```
 
-Callable可以通过调用future.cancel方法取消任务执行。
+Callable可以通过调用**future.cancel**方法取消任务执行。
 
 ```java
    boolean cancel(boolean mayInterruptIfRunning);
@@ -706,7 +706,11 @@ public interface RunnableFuture<V> extends Runnable, Future<V> {
 }
 ```
 
-FutureTask实现了Runnable、Future接口，所以它作为Runnable提交给线程池执行，也可以作为Future来接受Callable的返回值。
+FutureTask实现了Runnable、Future接口，所以它作为Runnable提交给线程池执行。
+
+FutureTask的构造器可以传入一个实现了Runnable或者Callable接口的对象，提交给线程池执行，之后可以使用isDone判断是否完成、使用get阻塞直到获取结果或者超时。
+
+和普通线程执行一样，不要直接调用FutureTask的run方法来执行任务。调用run方法不会启新线程，而是会直接串行方式执行。
 
 
 
@@ -782,11 +786,204 @@ CompletionService接口的作用是结合了BlockingQueue和Executor。实现类
 //输出 1  2  3  4 
 ```
 
-CompletionService 可以解决已完成任务得不到及时处理的问题。因为只有已完成的任务才会被加到内部的阻塞队列中。
+CompletionService 可以解决已完成任务得不到及时处理的问题。因为只有已完成的任务才会被加到内部的阻塞队列中。也就是说，在阻塞队列里面存放的都是已经完成的任务，调用take方法拿到future后，调用get方法是可以直接返回结果不需等待的。
+
+但是如果队列里面没有future，take方法还是会阻塞的。
 
 多个ExecutorCompletionService可以共用同一个Executor，CompletionService可以看作是一组任务对象的句柄。
 
 ### 任务的时间限制
 
+Future的get方法支持传入一个时间限制。
+
+在规定时间内没有获得到结果，就会抛出一个TimeOutException 异常。
+
+```java
+    /**
+     * Waits if necessary for at most the given time for the computation
+     * to complete, and then retrieves its result, if available.
+     */
+    V get(long timeout, TimeUnit unit)
+        throws InterruptedException, ExecutionException, TimeoutException;
+```
 
 
+
+### 提交一组任务
+
+将一组任务提交给ExecutorService线程池，然后获得一组future。支持时间限制。
+
+```java
+ <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks)
+        throws InterruptedException;
+
+ <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks,
+                                  long timeout, TimeUnit unit)
+        throws InterruptedException;
+```
+
+返回的Future集合顺序和task任务集合的顺序是一致、相对应的。
+
+这两个invokeAll方法都会阻塞当前线程，直到所有任务完成。
+
+带有超时时间限制的invokeAinv方法，这个时间限制是对于所有task任务而言的，如果超时，会取消所有没有执行完的任务，并抛出异常。
+
+
+
+# 取消与关闭
+
+Java没有提供任何机制可以用来安全的终止线程。Thread的stop->可能破坏数据一致性，和suspend方法->可能造成死锁，都已经被废弃。
+
+## 中断
+
+每个线程都有一个boolean类型的中断状态：
+
+```java
+public static boolean interrupted() ..//静态方法，清除当前线程的中断状态，并返回他之前的值(清除中断状态的唯一方法)
+public boolean isInterrupted() ...//返回目标线程的中断状态
+public void interrupt() ...//中断目标线程
+```
+
+阻塞库方法，Thread.sleep、join和Object.wait，阻塞队列的put、take 方法等都会检测线程的中断状态，在发现中断后会响应中断：清除中断状态、提前返回并抛出InterruptedException异常。
+
+但是线程如果在非阻塞状态下中断，只会设置中断标志，具体如何处理，由目标线程在获得中断请求后自行处理。
+
+就是说：中断并不会真正的中断一个正在运行的线程，只是发出了中断请求然后由线程在下一个合适的时刻中断自己。
+
+静态方法interrupted()会清除中断状态，所以在调用此方法返回true时，必须考虑是否要抛出异常或者再次调用interrupt()恢复中断状态，而不能直接无脑的屏蔽中断。
+
+## 通过Future中断
+
+future的cancel方法，传递mayInterruptIfRunning为true时，可以中断正在执行任务的线程，为false时候表示县城如果还没启动，那么就不要运行它。
+
+## 未捕获异常的处理
+
+UncaughtExceptionHandler接口用于处理未捕获异常。
+
+要为线程池中的所有线程设置一个UncaughtExceptionHandler，需要为ThreadPoolExecutor的构造函数提供一个ThreadFactory。
+
+仍然建议使用Guava的线程工厂，非常好用。
+
+![img](../img/clipboard-1593442717349.png)
+
+然后在新建线程池的时候使用带有ThreadFactory的构造器就ok了。
+注意：只有通过execute提交的任务才能将他抛出的异常交给未捕获异常处理器，而通过submit提交的任务，无论是未检查异常还是受检异常，都将会被认为是任务返回状态的一部分。通过submit提交的任务抛出了异常而结束，那么异常将被Future.get封装在ExecutionExecption中重新抛出。
+
+## JVM关闭
+
+### 关闭钩子
+
+在正常关闭中，JVM会调用所有已注册的关闭钩子。
+
+关闭钩子：通过Runtime.addShutdownHook注册的但是尚未开始的线程。JVM不保证关闭钩子的调用顺序。多个关闭钩子会并发执行。
+
+示例：
+
+```java
+
+public class Demo {
+    private static ThreadFactory factory = new ThreadFactoryBuilder()
+            .setNameFormat("study-%d")
+            .build();
+    private static ExecutorService pool = new ThreadPoolExecutor(3, 10, 0, TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(30), factory, new ThreadPoolExecutor.AbortPolicy());
+
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        //注册关闭钩子
+        Runtime.getRuntime().addShutdownHook(new Thread(){
+            @Override
+            public void run() {
+                System.out.println("Jvm要关闭了");
+            }
+        });
+
+        FutureTask<String> futureTask = new FutureTask<>(new Callable<String>() {
+            @Override
+            public String call() throws Exception {
+                Thread.sleep(3000);
+                return "success";
+            }
+        });
+
+        try {
+            pool.submit(futureTask);
+            System.out.println(futureTask.isDone());
+            String s = futureTask.get(10, TimeUnit.MILLISECONDS);
+            System.out.println(s);
+        } catch (TimeoutException e) {
+            futureTask.cancel(true);
+            System.out.println("执行太慢了，已超时");
+        }
+        pool.shutdown();
+        Thread.sleep(2000);
+    }
+```
+
+关闭钩子应该是线程安全的，并且不应该对应用程序的状态或者JVM的关闭原因做出任何假设。最后关闭钩子必须尽快退出。
+建议将多个清理、关闭操作放在同一个关闭钩子中，串行化执行。
+关闭钩子仅在JVM 正常关闭才会执行，在强制关闭JVM时不会执行。
+
+### 守护线程
+
+典型：垃圾回收器、执行辅助工作的线程。
+
+创建线程时，新线程会继承创建它的线程的守护状态，所以默认情况下主线程创建的都是普通线程。
+
+如果只剩下守护线程，JVM会直接退出。所有守护线程都会被直接抛弃，而且也不会执行finally代码块。
+
+### 终结器
+
+参考：https://blog.csdn.net/abvedu/article/details/54586848
+
+示例：
+
+```java
+
+
+public class Vehicle {
+    private int id;
+
+    public Vehicle(int id) {
+        this.id = id;
+        System.out.println("Vehicle Object   " + id + "   is created");
+    }
+
+    @Override
+    protected void finalize() throws java.lang.Throwable {
+        super.finalize();
+        System.out.println("Vehicle Object   " + id + "  is disposed");
+    }
+
+
+}
+
+
+class Test {
+
+
+        public static void main(String[] args){
+            Vehicle car1 = new Vehicle(1001);
+            Vehicle car2 = new Vehicle(1002);
+            Vehicle car3 = new Vehicle(1003);
+
+            car2  = null;
+            car3 = null;
+            System.gc();//Invoke the Java garbage collector
+
+        }
+
+}
+
+```
+
+![image-20200629232826317](../img/image-20200629232826317.png)
+
+垃圾回收器在回收对象时候，会对定义了finalize方法的对象进行特殊处理：在回收器释放他们后，调用他们的finalize方法。
+
+**避免使用终结器**
+
+
+
+# 线程池的使用
+
+## 任务和执行策略之间的隐性耦合
