@@ -561,11 +561,9 @@ import java.util.concurrent.*;
 
 public class MyTest {
     public static void main(String[] args) {
-        ThreadFactory namedThreadFactory = new ThreadFactoryBuilder()
-                .setNameFormat("demo-pool-%d").build();
-        ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("线程名称-%s").build();
+        ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("demo-pool-%d").build();
         ExecutorService pool = new ThreadPoolExecutor(5, 200, 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<Runnable>(1024), namedThreadFactory, new ThreadPoolExecutor.AbortPolicy());
+                new LinkedBlockingQueue<Runnable>(1024), threadFactory, new ThreadPoolExecutor.AbortPolicy());
         pool.execute(()-> System.out.println(Thread.currentThread().getName()));
         pool.shutdown();//gracefully shutdown
     }
@@ -986,4 +984,173 @@ class Test {
 
 # 线程池的使用
 
-## 任务和执行策略之间的隐性耦合
+## 线程饥饿死锁
+
+### 依赖性任务
+
+线程池中如果有任务依赖于其他任务，就有可能会发生死锁。
+
+例如线程池中正在执行任务的线程在等待处在线程池工作等待队列中的任务，就会发生死锁。
+
+
+
+除了线程池显式设置的最大线程数之外，也会受到资源上的限制。例如只有n个连接的JDBC连接池，超过n个任务时候，多的任务必须等待之前的任务释放连接。
+
+### 耗时任务
+
+如果任务执行时间过长，即使不出现死锁，也会降低线程池的响应性。
+
+如果不加以限制，很有可能最终线程池中执行的全都是耗时长的任务，造成线程池阻塞。
+
+建议视情况对某些耗时长的任务施加最长等待时间，超出了等待事件就标记为失败，不再无限期等待。
+
+### 线程池的大小
+
+N为CPU总核数，那么：
+
+如果是CPU密集型应用，则线程池大小设置为N+1
+
+如果是IO密集型应用，则线程池大小设置为2N+1
+
+如果一台服务器上只部署这一个应用并且只有这一个线程池，那么这种估算或许合理，具体还需自行测试验证。但是，IO优化中，这样的估算公式可能更适合：
+
+最佳线程数目 = （（线程等待时间+线程CPU时间）/线程CPU时间 ）* CPU数目
+
+**线程等待时间所占比例越高，需要越多线程。线程CPU时间所占比例越高，需要越少线程。**
+
+http://ifeve.com/how-to-calculate-threadpool-size/
+
+### 线程的创建与销毁
+
+线程池创建方法：
+
+```java
+public ThreadPoolExecutor(int corePoolSize, //线程池核心线程数量
+                          int maximumPoolSize,//线程池最大数量
+                          long keepAliveTime,//空闲线程存活时间
+                          TimeUnit unit,//时间单位
+                          BlockingQueue<Runnable> workQueue,//线程池所使用的缓冲队列
+                          ThreadFactory threadFactory,//线程池创建线程使用的工厂
+                          RejectedExecutionHandler handler)//线程池对拒绝任务的处理策略
+```
+
+线程池的核心线程数量corePoolSize、最大线程数量maximumPoolSize和空闲线程存活时间keepAliveTime共同负责现成吃的创建与销毁。
+
+corePoolSize就是创建线程池时默认的线程数量，即便没有任何任务执行线程数量也会保持为corePoolSize。
+
+提交的任务大于corePoolSize时，会进入阻塞队列等待。
+
+只有当阻塞队列满了的时候，才会创建超出corePoolSize数量的线程，但是会始终小于等于maximumPoolSize。
+
+如果某个线程的空闲时间超过了keepAliveTime，并且此时线程池的线程数量大于corePoolSize，那么该线程就会被终止。
+
+### 饱和策略/拒绝策略
+
+当要创建的线程数量大于线程池的最大线程数的时候，新的任务就会被拒绝，就会调用这个接口里的这个方法，如何处理新提交的任务由饱和策略来决定。ThreadPlloExecutor 提供了4种饱和策略。
+
+![image-20200702233522125](../img/image-20200702233522125.png)
+
+AbortPolicy 中止：默认饱和策略，直接抛出RejectedExecutionException 异常，并放弃这个任务，不再执行。
+
+```java
+    public static class AbortPolicy implements RejectedExecutionHandler {
+        /**
+         * Creates an {@code AbortPolicy}.
+         */
+        public AbortPolicy() { }
+
+        /**
+         * Always throws RejectedExecutionException.
+         *
+         * @param r the runnable task requested to be executed
+         * @param e the executor attempting to execute this task
+         * @throws RejectedExecutionException always
+         */
+        public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
+            throw new RejectedExecutionException("Task " + r.toString() +
+                                                 " rejected from " +
+                                                 e.toString());
+        }
+    }
+```
+
+DiscardPolicy 抛弃，什么都没做，直接丢弃。
+
+看代码发现方法体是空的，直接丢弃，不做任何事情，不抛出异常也不会执行任务。
+
+```java
+ public static class DiscardPolicy implements RejectedExecutionHandler {
+        /**
+         * Creates a {@code DiscardPolicy}.
+         */
+        public DiscardPolicy() { }
+
+        /**
+         * Does nothing, which has the effect of discarding task r.
+         *
+         * @param r the runnable task requested to be executed
+         * @param e the executor attempting to execute this task
+         */
+        public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
+        }
+    }
+```
+
+DiscardOldestPolicy 抛弃最旧的任务：它会抛弃阻塞队列中最先加入的任务，然后再把这个新任务添加到阻塞队列里面。
+
+看代码， 队列是FIFO的，先让队列头的任务(最老的任务)出队，然后再提交新任务到队列里面。
+
+```java
+    public static class DiscardOldestPolicy implements RejectedExecutionHandler {
+        /**
+         * Creates a {@code DiscardOldestPolicy} for the given executor.
+         */
+        public DiscardOldestPolicy() { }
+
+        /**
+         * Obtains and ignores the next task that the executor
+         * would otherwise execute, if one is immediately available,
+         * and then retries execution of task r, unless the executor
+         * is shut down, in which case task r is instead discarded.
+         *
+         * @param r the runnable task requested to be executed
+         * @param e the executor attempting to execute this task
+         */
+        public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
+            if (!e.isShutdown()) {
+                e.getQueue().poll();
+                e.execute(r);
+            }
+        }
+    }
+```
+
+
+
+CallerRunsPolicy 调用者运行，也就是线程池所在的线程直接取运行这个新提交的任务。
+
+看方法，直接调用了run()方法。
+
+```java
+   public static class CallerRunsPolicy implements RejectedExecutionHandler {
+        /**
+         * Creates a {@code CallerRunsPolicy}.
+         */
+        public CallerRunsPolicy() { }
+
+        /**
+         * Executes task r in the caller's thread, unless the executor
+         * has been shut down, in which case the task is discarded.
+         *
+         * @param r the runnable task requested to be executed
+         * @param e the executor attempting to execute this task
+         */
+        public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
+            if (!e.isShutdown()) {
+                r.run();
+            }
+        }
+    }
+```
+
+默认的四种策略都很简单，可以自定义饱和策略，实现RejectedExecutionHandler接口即可。
