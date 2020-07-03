@@ -984,9 +984,9 @@ class Test {
 
 # 线程池的使用
 
-## 线程饥饿死锁
+### 线程饥饿死锁
 
-### 依赖性任务
+#### 依赖性任务
 
 线程池中如果有任务依赖于其他任务，就有可能会发生死锁。
 
@@ -996,7 +996,7 @@ class Test {
 
 除了线程池显式设置的最大线程数之外，也会受到资源上的限制。例如只有n个连接的JDBC连接池，超过n个任务时候，多的任务必须等待之前的任务释放连接。
 
-### 耗时任务
+#### 耗时任务
 
 如果任务执行时间过长，即使不出现死锁，也会降低线程池的响应性。
 
@@ -1034,7 +1034,7 @@ public ThreadPoolExecutor(int corePoolSize, //线程池核心线程数量
                           RejectedExecutionHandler handler)//线程池对拒绝任务的处理策略
 ```
 
-线程池的核心线程数量corePoolSize、最大线程数量maximumPoolSize和空闲线程存活时间keepAliveTime共同负责现成吃的创建与销毁。
+线程池的核心线程数量corePoolSize、最大线程数量maximumPoolSize和空闲线程存活时间keepAliveTime共同负责线程池的创建与销毁。
 
 corePoolSize就是创建线程池时默认的线程数量，即便没有任何任务执行线程数量也会保持为corePoolSize。
 
@@ -1046,11 +1046,19 @@ corePoolSize就是创建线程池时默认的线程数量，即便没有任何�
 
 ### 饱和策略/拒绝策略
 
-当要创建的线程数量大于线程池的最大线程数的时候，新的任务就会被拒绝，就会调用这个接口里的这个方法，如何处理新提交的任务由饱和策略来决定。ThreadPlloExecutor 提供了4种饱和策略。
+当要创建的线程数量大于线程池的最大线程数的时候，新的任务就会根据饱和策略来进行处理，也即调用这个接口里的方法。
+
+如何处理新提交的任务由饱和策略来决定。
+
+此外，如果线程池已经被关闭，却仍然使用这个线程池提交新任务，那么也会调用这个方法。
+
+ThreadPlloExecutor 提供了4种默认的饱和策略实现。
 
 ![image-20200702233522125](../img/image-20200702233522125.png)
 
 AbortPolicy 中止：默认饱和策略，直接抛出RejectedExecutionException 异常，并放弃这个任务，不再执行。
+
+看代码就是直接抛出异常。
 
 ```java
     public static class AbortPolicy implements RejectedExecutionHandler {
@@ -1098,7 +1106,7 @@ DiscardPolicy 抛弃，什么都没做，直接丢弃。
 
 DiscardOldestPolicy 抛弃最旧的任务：它会抛弃阻塞队列中最先加入的任务，然后再把这个新任务添加到阻塞队列里面。
 
-看代码， 队列是FIFO的，先让队列头的任务(最老的任务)出队，然后再提交新任务到队列里面。
+看代码， 队列是FIFO的，先让队列头的任务(最老的任务)出队，然后再提交这个新任务到队列里面。
 
 ```java
     public static class DiscardOldestPolicy implements RejectedExecutionHandler {
@@ -1127,7 +1135,7 @@ DiscardOldestPolicy 抛弃最旧的任务：它会抛弃阻塞队列中最先加
 
 
 
-CallerRunsPolicy 调用者运行，也就是线程池所在的线程直接取运行这个新提交的任务。
+CallerRunsPolicy 调用者运行，也就是线程池所在的线程直接来运行这个新提交的任务。
 
 看方法，直接调用了run()方法。
 
@@ -1153,4 +1161,10 @@ CallerRunsPolicy 调用者运行，也就是线程池所在的线程直接取运
     }
 ```
 
+执行任务需要一定的时间，因此在这期间，主线程会阻塞在这里，直到任务完成。那么至少会有一段时间，主线程不会再提交新的任务，是的线程池中的任务得以慢慢完成。
+
+在这期间，主线程不会调用accept来接受新的请求，到达的新请求会保存在TCP层的队列中。如果持续过载，那么TCP层的请求队列也会被填满，继而会开始抛弃新的请求。也即过载的状况会逐渐向外延伸，从线程池工作队列到应用程序再到TCP层，最终到达客户端，从而让服务器在高负载情况下平缓的降低性能。
+
 默认的四种策略都很简单，可以自定义饱和策略，实现RejectedExecutionHandler接口即可。
+
+## 线程工厂
