@@ -550,6 +550,12 @@ public class CyclicBarrierDemo {
 
 ### 线程池
 
+为什么使用线程池？
+
+最核心的原因：减少频繁创建、销毁线程带来的资源消耗。
+
+### 线程饥饿死锁
+
 阿里巴巴开发手册里面，提到不能使用Executors创建线程池。建议手动创建，示例：
 
 ```java
@@ -984,7 +990,7 @@ class Test {
 
 # 线程池的使用
 
-### 线程饥饿死锁
+
 
 #### 依赖性任务
 
@@ -1036,9 +1042,9 @@ public ThreadPoolExecutor(int corePoolSize, //线程池核心线程数量
 
 线程池的核心线程数量corePoolSize、最大线程数量maximumPoolSize和空闲线程存活时间keepAliveTime共同负责线程池的创建与销毁。
 
-corePoolSize就是创建线程池时默认的线程数量，即便没有任何任务执行线程数量也会保持为corePoolSize。
+corePoolSize：在创建线程池时候指定corePoolSize，并不是一创建线程池就会立即创建corePoolSize数量的线程，新创建的线程池中是没有任何线程的，线程会在提交任务到线程池的时候进行创建。corePoolSize的作用在于，如果提交任务到线程池时候，如果当前线程数量小于corePoolSize，那么无论当前的线程是否空闲，都会创建一个新的线程来执行任务。直到线程池的线程数量等于corePoolSize。
 
-提交的任务大于corePoolSize时，会进入阻塞队列等待。
+如果当前正在执行任务的线程数=corePoolSize，那么新提交的任务会进入阻塞队列等待。
 
 只有当阻塞队列满了的时候，才会创建超出corePoolSize数量的线程，但是会始终小于等于maximumPoolSize。
 
@@ -1168,3 +1174,241 @@ CallerRunsPolicy 调用者运行，也就是线程池所在的线程直接来运
 默认的四种策略都很简单，可以自定义饱和策略，实现RejectedExecutionHandler接口即可。
 
 ## 线程工厂
+
+每当线程池需要创建一个线程的时候，都是通过线程工厂方法来完成的。	
+
+默认的线程工厂```DefaultThreadFactory```：通过Executors.defaultThreadFactory()创建。
+
+```java
+    /**
+     * The default thread factory
+     */
+    static class DefaultThreadFactory implements ThreadFactory {
+        private static final AtomicInteger poolNumber = new AtomicInteger(1);
+        private final ThreadGroup group;
+        private final AtomicInteger threadNumber = new AtomicInteger(1);
+        private final String namePrefix;
+
+        DefaultThreadFactory() {
+            SecurityManager s = System.getSecurityManager();
+            group = (s != null) ? s.getThreadGroup() :
+                                  Thread.currentThread().getThreadGroup();
+            namePrefix = "pool-" +
+                          poolNumber.getAndIncrement() +
+                         "-thread-";
+        }
+
+        public Thread newThread(Runnable r) {
+            //设置线程名，默认为 pool-线程池编号-thread-线程编号
+            Thread t = new Thread(group, r,
+                                  namePrefix + threadNumber.getAndIncrement(),
+                                  0);
+            //默认都设置为非守护线程
+            if (t.isDaemon())
+                t.setDaemon(false);
+            //默认都设置为正常优先级
+            if (t.getPriority() != Thread.NORM_PRIORITY)
+                t.setPriority(Thread.NORM_PRIORITY);
+            return t;
+        }
+    }
+```
+
+自定义线程工厂只需要实现newThread 方法即可。
+
+可以继承Thread类，来实现自己的一些逻辑，例如记录日志、记录活跃线程数量等。
+
+Java Concurrency in Practice上的例子：
+
+自定义线程工厂：
+
+```java
+public class MyThreadFactory implements ThreadFactory {
+    //线程池命名
+    private final String poolName;
+
+    public MyThreadFactory(String poolName) {
+        this.poolName = poolName;
+    }
+
+    @Override
+    public Thread newThread(Runnable r) {
+        return new MyThread(r, poolName);
+
+    }
+}
+
+```
+
+自定义Thread类：
+
+```java
+public class MyThread extends Thread {
+
+    public static final String DEFAULT_NAME = "MyThread";
+    private static volatile boolean debugLifecycle = false;
+    private static final AtomicInteger created = new AtomicInteger();
+    private static final AtomicInteger alive = new AtomicInteger();
+
+    public MyThread(Runnable r) {
+        this(r, DEFAULT_NAME);
+        super.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread t, Throwable e) {
+                System.out.println("UncaughtException in thread " + t.getName() + e.toString());
+            }
+        });
+    }
+
+    @Override
+    public void run() {
+        boolean debug = debugLifecycle;
+        if (debug) {
+            System.out.println("Created " + super.getName());
+        }
+        try {
+            alive.incrementAndGet();
+            super.run();
+        } finally {
+            alive.decrementAndGet();
+            if (debug) {
+                System.out.println("Existing " + super.getName());
+            }
+        }
+    }
+
+    public static int getThreadsCreated() {
+        return created.get();
+    }
+
+    public static int getThreadsAlive() {
+        return alive.get();
+    }
+
+    public static boolean getDebug() {
+        return debugLifecycle;
+    }
+
+    public static void setDebug(boolean b) {
+        debugLifecycle = b;
+    }
+
+    public MyThread(Runnable r, String name) {
+        super(r, name + "-" + created.incrementAndGet());
+        super.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread t, Throwable e) {
+                System.out.println("UncaughtException in thread " + t.getName() + e.toString());
+            }
+        });
+    }
+}
+
+```
+
+测试：
+
+```java
+public class MainDemo {
+
+    public static void main(String[] args) {
+
+        ExecutorService pool = new ThreadPoolExecutor(3, 10, 0, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(30), new MyThreadFactory("jelly"));
+        MyThread.setDebug(true);
+        pool.execute(() -> {
+            System.out.println(Thread.currentThread().getName());
+        });
+        pool.execute(() -> {
+            System.out.println(Thread.currentThread().getName());
+        });
+        pool.execute(() -> {
+            System.out.println(1 / 0);
+        });
+
+        pool.shutdownNow();
+
+    }
+}
+
+```
+
+输出：
+
+![image-20200704115953339](../img/image-20200704115953339.png)
+
+
+
+## 修改Executor
+
+通过调用构造函数构建了线程池之后，仍然可以通过setter函数对线程池的属性进行修改，包括核心线程数、最大线程数、拒绝执行处理器等。
+
+将结果类型转为ThreadPoolExecutor才能访问setter方法。
+
+示例：
+
+![image-20200704172002875](../img/image-20200704172002875.png)
+
+#### 扩展ThreadPoolExecutor
+
+ThreadPoolExecutor 提供了```beforeExecute```、`afterExecute`、`terminated`三个可以在子类中重写的方法，用他们可以控制、扩展ThreadPoolExecutor的行为。
+
+beforeExecute：线程执行任务前调用。如果执行beforeExecute中抛出了异常，那么任务将不会在执行，并且也不会再调用afterExecute。jdk文档建议在重写方法的末尾调用super.beforeExecute.
+
+afterExecute: 线程执行任务完成后调用，无论任务是正常的执行完run方法后返回，还是在执行run方法中抛出了异常而提前返回，afterExecute都会被调用。(任务执行出现Error错误时候，afterExecute不会被调用)。jdk文档建议在重写方法的开头调用super.afterExecute
+
+terminated:在线程池关闭，所有任务都已完成、所有工作者线程关闭之后，会调用terminated方法。jdk文档建议在重写方法中调用super.terminated
+
+## 线程池是怎么重复利用线程的？
+
+参考：[线程池是怎么重复利用线程的](https://blog.csdn.net/pursuer211/article/details/83892918#deadlock)
+
+
+
+线程持有一个Runnable对象task，在循环中判断task是否为null，如果不为null，那么就直接调用该对象的run方法执行，执行完毕后会将task重新设置为null。继续循环判断。也就是说，线程在执行完传入的任务后是不退出的，而是将task设为null后继续循环。
+
+这个task值是初始化时候的值或者从工作队列里面取值，从工作队列里面取值时候会进行判断，如果是非核心线程，带有超时控制，会使用BlockingQueue的poll方法，超时还没获取到对象时候会返回null，打破了work线程的循环条件，就会退出循环，并且销毁该线程。如果是核心线程，不带有超时控制，会使用BlockingQueue的take方法，取不到就一直阻塞。线程池就用这种方法维持coreSize线程的数量。
+
+> 实际上线程本身是不知道自己是不是核心线程的，对于线程而言，都是一样的。只是当线程池中的线程多于指定的核心线程数量时，会将多出来的线程销毁掉，池中只保留指定个数的线程。那些被销毁的线程是随机的，可能是第一个创建的线程，也可能是最后一个创建的线程，或其它时候创建的线程。一开始我以为会有一些线程被标记为“核心线程”，而其它的则是“非核心线程”，在销毁多余线程的时候只销毁那些“非核心线程”，而“核心线程”不被销毁。这种理解是错误的。
+
+# 活跃性危险
+
+## 死锁
+
+### 锁顺序死锁
+
+两个线程以不同的顺序来获取相同的锁。
+
+### 协作对象之间发生死锁
+
+在持有锁的情况下调用某个外部方法，必须注意死锁的可能性。
+
+### 资源死锁
+
+多个线程相互持有彼此正等待的锁而又不失方自己已持有的锁时会发生死锁，当他们在相同的资源集合上等待的时候，也可能会发生死锁。
+
+## 饥饿
+
+线程由于无法访问他所需要的资源而不能继续执行时候，就会发生 “饥饿” 现象。引发饥饿最常见的就是CPU时钟周期。
+
+例如，如果给线程设置了优先级，那么可能会导致高优先级线程不断的进入执行，而低优先级线程分配不到CPU时钟周期，没有执行的机会。虽没有发生死锁，但是线程仍旧无法向前推进。这也是不建议设置线程优先级、统一使用默认优先级`Thread.NORM_PRIORITY`的原因。
+
+## 活锁
+
+和死锁最大的区别就是，死锁是拿不到想要的资源就无脑等待，而且不放弃已持有资源。活锁是就拿不到就放弃，并且释放持有的资源，然后重新再试。
+
+活锁的具体表现就是：两个线程不断地重复执行相同的操作，而且总会失败。
+
+[什么是活锁](https://www.zhihu.com/question/20566246)
+
+这个配图太形象了。。
+
+![img](../img/v2-ab2ee9eefc6628d92ac61905e9f15055_hd.webp)
+
+过于礼貌的两人不断的相互避让就是活锁。
+
+解决活锁的一个方法是在重试机制中加入随机因素。例如加入一个随机的重试等待时间。
+
+# 显式锁
+
+## Lock和ReentrantLock
