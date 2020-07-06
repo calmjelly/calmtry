@@ -1423,5 +1423,81 @@ terminated:在线程池关闭，所有任务都已完成、所有工作者线程
 
 2、内置锁必须在该锁的代码块中释放，无法实现非阻塞结构的加锁规则。加锁机制不够灵活。
 
-## Lock和ReentrantLock
+## lock
+
+lock方法必须紧跟try..finally代码块，释放锁的操作必须放在finally中。
+
+lock()会尝试获取锁，如果拿不到锁，会一致阻塞等待，直到获取锁为止。
+
+以最常用的实现ReentrantLock为例。
+
+```java
+		Lock lock = new ReentrantLock();
+        lock.lock();
+        try {
+            //do something
+        } finally {
+            lock.unlock();
+            
+        }
+```
+
+## tryLock
+
+tryLock 与lock方法最大的区别是，tryLock在尝试获取锁失败后，不会等待，直接返回false。
+
+带有时间限制的tryLock方法，在尝试获取锁失败后，会阻塞等待一段时间，如果超过时间限制仍然没有获得锁，就会返回false。
+
+可以用tryLock实现轮询锁、定时锁。
+
+
+
+## lockInterruptibly
+
+可中断的锁获取操作，
+
+lockInterruptibly方法会一直阻塞等待，直到获得锁为止，但是它可以响应中断。lock方法是不响应中断的。
+
+带有超时限制的tryLock也是可以响应中断的。
+
+测试：
+
+```java
+package lock;
+
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+public class Main {
+    private Lock lock = new ReentrantLock();
+
+    public static void main(String[] args) throws InterruptedException {
+        Main main = new Main();
+        new Thread(() -> {
+            main.lock.lock();
+            try {
+                Thread.sleep(200000);
+            } catch (InterruptedException ignored) {
+            } finally {
+                main.lock.unlock();
+            }
+        }).start();
+        Thread.sleep(1000);
+        Thread thread = new Thread(() -> {
+            try {
+                main.lock.tryLock(10, TimeUnit.SECONDS);
+                System.out.println("拿到锁了");
+            } catch (InterruptedException e) {
+                System.out.println("响应中断：阻塞等待的过程中被中断了");
+            }
+        });
+        thread.start();
+        Thread.sleep(1000);
+        System.out.println("准备中断");
+        thread.interrupt();
+    }
+}
+
+```
 

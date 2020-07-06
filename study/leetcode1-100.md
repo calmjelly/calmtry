@@ -517,3 +517,145 @@ class Solution {
 
 动态规划，不太擅长，参考：[大白话讲解动态规划](https://leetcode-cn.com/problems/regular-expression-matching/solution/dong-tai-gui-hua-zen-yao-cong-0kai-shi-si-kao-da-b/) 思路按照这个讲解来。
 
+//TODO 周末再搞。
+
+
+
+
+
+# 11.盛水最多的容器
+
+双指针，一个最左一个最右，类似木桶效应，盛水由较低的木板决定，哪边的值小，就移动哪边，只有这样才有可能让面积变大。
+
+```java
+class Solution {
+    public int maxArea(int[] height) {
+          if (height.length == 0) {
+            return 0;
+        }
+        int left = 0, right = height.length - 1;
+        int res = 0;
+        while (left < right) {
+            //左边小，左边右移，这样才有可能增大面积
+            if (height[left] < height[right]) {
+                res = Math.max(res,(right - left)*height[left]);
+                left++;
+            } else {
+                res = Math.max(res,(right - left)*height[right]);
+                right--;
+            }
+        }
+        return res;
+    }
+}
+```
+
+![image-20200706194655829](../img/image-20200706194655829.png)
+
+# 12.整数转罗马数字
+
+拿整数减去最大的罗马数字。
+
+把所有能拼成的罗马数字和对应的数字先列出来，拿整数和最大的罗马数字相比较，如果比他大就减去它，然后蒋天这个数字代表的罗马数字，以此类推。
+
+```java
+class Solution {
+    public String intToRoman(int num) {
+        StringBuilder res = new StringBuilder();
+        String[] roman = {"M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"};
+        int[] values = {1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1};
+        int i = 0;
+        while (num != 0) {
+            //从最大的数开始减，依次往后推
+            if (num >= values[i]&&i<values.length) {
+                num = num-values[i];
+                res.append(roman[i]);
+                continue;
+            }
+            i++;
+        }
+        return res.toString();
+    }
+}
+```
+
+![image-20200706212740745](../img/image-20200706212740745.png)
+
+# 13.罗马数字转整数
+
+如果一个罗马数字不在最后一位，并且这个罗马数字比下一位罗马数字小，那么这个罗马数字就代表负值。
+
+按照这个思路写就行。
+
+```java
+class Solution {
+    public int romanToInt(String s) {
+   		Map<Character, Integer> map = new HashMap<>();
+        map.put('I', 1);
+        map.put('V', 5);
+        map.put('X', 10);
+        map.put('L', 50);
+        map.put('C', 100);
+        map.put('D', 500);
+        map.put('M', 1000);
+        int res = 0;
+        for (int i = 0; i < s.length(); i++) {
+            //小数在大数前面，且不是最后一位，就是负的
+            if (i==s.length()-1||map.get(s.charAt(i))>=map.get(s.charAt(i+1))){
+                res+=map.get(s.charAt(i));
+            }else {
+                res-=map.get(s.charAt(i));
+            }
+        }
+        return res;
+    }
+}
+```
+
+
+
+![image-20200706220948203](../img/image-20200706220948203.png)
+
+# 14.最长公共前缀
+
+取数组的第一个字符串作为最长公共前缀，让他和第二个字符串逐位匹配，遇到第一个不匹配的字符后，裁剪为相匹配的部分，然后再和第三个字符串相匹配，以此类推。
+
+```java
+class Solution {
+    public String longestCommonPrefix(String[] strs) {
+       if (strs.length == 0) {
+            return "";
+        }
+        //取第一个字符串为最长公共前缀
+        String res = strs[0];
+        for (int i = 1; i < strs.length; i++) {
+            int j = 0;
+            //逐位匹配
+            while (j < res.length() && j < strs[i].length()) {
+                //遇到不匹配的字符，记录结束位置j，跳出循环
+                if (res.charAt(j) != strs[i].charAt(j)) {
+                    break;
+                }
+                j++;
+            }
+            //裁剪为相匹配的部分
+            res = res.substring(0, j);
+            //如果裁剪后最长公共前缀为空串，那么就没有继续往后比较的必要了
+            if ("".equals(res)) {
+                return "";
+            }
+        }
+        return res;
+    }
+}
+```
+
+
+
+
+
+![image-20200706221508155](../img/image-20200706221508155.png)
+
+
+
+15.
