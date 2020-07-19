@@ -658,4 +658,176 @@ class Solution {
 
 
 
-15.
+# 15.三数之和
+
+排序数组，然后固定左边第一位，使用两个指针分别指向左边第二位和最后一位，如果和大于0，那么说明值偏大，让右指针左移，反之则左指针右移。
+
+如果和刚好为0，那么记录这三个值，同时移动左指针和右指针，这样才有可能和继续为0,。注意判断重复。
+
+然后固定左边第二位。。。以此类推。
+
+```java
+class Solution {
+    public List<List<Integer>> threeSum(int[] nums) {
+      List<List<Integer>> res = new ArrayList<>();
+        if (nums.length < 3) {
+            return res;
+        }
+        //对数组进行排序
+        Arrays.sort(nums);
+        //固定左边一位
+        for (int i = 0; i <= nums.length - 3; i++) {
+            //去重,不能用nums[i]==nums[i+1]判断，因为解答中允许重复数字，这样判断会直接把重复数字的可能解都过滤掉
+            if (i>=1&&nums[i]==nums[i-1]){
+                continue;
+            }
+            //数组已排序，左边的三个数是和最小的
+            //如果最小的和都大于0，那么就没有继续往后面计算的必要了
+            if (nums[i] + nums[i + 1] + nums[i + 2] > 0) {
+                return res;
+            }
+            //左右两个指针， 和小于0 左指针右移， 和大于0 右指针左移
+            //只有这样才有可能让和等于0
+            int left = i + 1;
+            int right = nums.length - 1;
+        
+            while (left < right) {
+                int sum = nums[i] + nums[left] + nums[right];
+                if (sum == 0) {
+                    res.add(Arrays.asList(nums[i], nums[left], nums[right]));
+                    //去重
+                    while (left < right && nums[left] == nums[left + 1]) {
+                        left++;
+                    }
+                    while (left < right && nums[right] == nums[right - 1]) {
+                        right--;
+                    }
+                    //同时移动左右指针，有可能让和仍然为0
+                    left++;
+                    right--;
+                }else if (sum<0){
+                    left++;
+                }else {
+                    right--;
+                }
+            }
+        }
+        return res;
+    }
+}
+```
+
+
+
+![image-20200707230716099](../img/image-20200707230716099.png)
+
+
+
+PS：2020年7月19日21:50:56
+
+最近两周出差，晚上回酒店没什么事把go的语法简单的撸了一遍，感觉好简洁……和java一样是静态语言却有点python的感觉。后续刷题用java解决后，尝试用go和python去写下。
+
+# 16.最接近的三数之和
+
+和15题思路基本一致。直接上代码：
+
+Java：
+
+```java
+class Solution {
+      public int threeSumClosest(int[] nums, int target) {
+        //记录差值
+        int nearestValue = Integer.MAX_VALUE;
+        //记录结果
+        int res = 0;
+        if (nums.length < 3) {
+            int sum = 0;
+            for (int i = 0; i < nums.length; i++) {
+                sum += nums[i];
+            }
+            return sum;
+        }
+        //对数组进行排序
+        Arrays.sort(nums);
+        //最左侧三个值和最小，如果最小的值都比target大，其他组合只会更大，直接返回这三数之和即可
+        int temp = nums[0] + nums[1] + nums[2];
+        if (temp >= target) {
+            return temp;
+        }
+        //每次左边固定一位
+        for (int i = 0; i <= nums.length - 3; i++) {
+            //左右两个指针
+            int left = i + 1;
+            int right = nums.length - 1;
+            while (left < right) {
+                //三数之和
+                int sum = nums[i] + nums[left] + nums[right];
+                //和与目标值的差值，这是差值，结果要最接近的数，不是要最接近的差值，不要搞混
+                int differ = sum - target;
+                if (Math.abs(differ) < Math.abs(nearestValue)) {
+                    nearestValue = differ;
+                    res = sum;
+                }
+                if (differ < 0) {
+                    left++;
+                } else if (differ > 0) {
+                    right--;
+                } else {
+                    return target;
+                }
+            }
+        }
+        return res;
+    }
+}
+```
+
+![image-20200719225805505](../img/image-20200719225805505.png)
+
+Go：直接翻译java的解法
+
+```go
+func threeSumClosest(nums []int, target int) int {
+nearestValue := math.MaxInt64
+	res := 0
+	if len(nums) < 3 {
+		sum := 0
+		for i := 0; i < len(nums); i++ {
+			sum += nums[i]
+		}
+	}
+	//排序
+	sort.Ints(nums)
+	temp := nums[0] + nums[1] + nums[2]
+	if temp > target {
+		return temp
+	}
+	for i := 0; i <= len(nums)-3; i++ {
+		left := i + 1
+		right := len(nums) - 1
+		for left < right {
+			sum := nums[i] + nums[left] + nums[right]
+			differ := sum - target
+			if math.Abs((float64(differ))) < math.Abs(float64(nearestValue)) {
+				nearestValue = differ
+				res = sum
+			}
+			if differ < 0 {
+				left++
+			} else if differ > 0 {
+				right--
+			} else {
+				return target
+			}
+		}
+	}
+	return res
+}
+
+```
+
+![image-20200719230915910](../img/image-20200719230915910.png)
+
+# 17.电话号码的字母组合
+
+比较通用的解法，用回溯法。
