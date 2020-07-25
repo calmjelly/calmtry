@@ -1426,3 +1426,690 @@ class Solution {
 
 
 # 27. 移除元素
+
+可以采用和26题一样的思路：
+
+双指针：一个快指针j一个慢指针i，初始都指向数组第一个元素，当快指针指向的值与目标值相等时候，递增快指针跳过这个值，当快指针遇到非目标值时候，将nums[j]的值赋值给nums[i] 即可。
+
+Java：
+
+```java
+class Solution {
+    public int removeElement(int[] nums, int val) {
+     int i = 0;
+        for (int j = 0; j < nums.length; j++) {
+            if (nums[j] != val) {
+                nums[i++] = nums[j];
+            }
+        }
+        return i;
+    }
+}
+```
+
+
+
+![image-20200724233507704](../img/image-20200724233507704.png)
+
+看其他人的解法,仍然用两个指针，但是一个指向开头，一个指向结尾，头指针如果遇到目标值，就把尾指针指向的值复制过来，然后尾指针向前移动，就这样循环判断，直到头指针的值不是目标值为止，此时移动头指针，继续判断即可。
+
+```java
+class Solution {
+    public int removeElement(int[] nums, int val) {
+    int i=0,n=nums.length;
+        while (i<n){
+            if (nums[i]==val){
+                nums[i]=nums[--n];
+            }else {
+                i++;
+            }
+        }
+        return n;
+    }
+}
+```
+
+
+
+# 28.实现strStr()
+
+KMP 算法就不说了，暂且跳过。。
+
+双指针：用两个指针，指向两个字符串，匹配的话同时移动继续匹配下一位，不成功就回退到下一个位置，继续匹配，直到遍历完字符串为止。
+
+
+
+```java
+class Solution {
+    public int strStr(String haystack, String needle) {
+        if (needle.length() == 0) {
+            return 0;
+        }
+        int i = 0;
+        while (i < haystack.length()) {
+            for (int j=0;;j++) {
+                if (j == needle.length()) {
+                    return i;
+                }
+                if(i+j==haystack.length()){
+                    return -1;
+                }
+                if (haystack.charAt(i+j) != needle.charAt(j)) {
+                    break;
+                }
+            }
+            i++;
+        }
+        return -1;
+    }
+}
+```
+
+
+
+![image-20200725002950285](../img/image-20200725002950285.png)
+
+# 29.两数相除
+
+参考网上解法：
+
+简单说就是：商*除数+余数=被除数。那么这个除数能被减多少次，商就是多少。
+
+用移位来进行计算，先让A右移31位，相当于除以2^31，如果这个结果小于B，那么就除了2^30，直到遇到第一个A/2^x>=B的x值，也就是A>=B *2^x，A可以减去2^x个B，所以商就加上2^x，然后缩小x，继续这样右移比较，直到x小于0为止。将减去了多少个B的值累加起来就是结果。
+
+左移乘2，右移除2.
+
+Java
+
+```java
+class Solution {
+     public int divide(int A, int B) {
+         //溢出判断
+           if (A == Integer.MIN_VALUE && B == -1) {
+            return Integer.MAX_VALUE;
+        }
+        int a = Math.abs(A);
+        int b = Math.abs(B);
+        int res = 0;
+         //从大到小开始相减，直到减去某个数后余数大于0
+        for (int i = 31; i >= 0; i--) {
+            if ((a >>> i) - b >= 0) {
+                //将减去多少个除数累加起来
+                res += 1 << i;
+                //更新被除数
+                a -= b << i;
+            }
+        }
+         //A、B异号商取负值
+        if (A > 0 != B > 0) {
+            res = -res;
+        }
+        return res;
+    }
+}
+```
+
+
+
+![image-20200725113300275](../img/image-20200725113300275.png)
+
+
+
+# 30.串联所有单词的子串（hard）未解决
+
+hard跳过，周末一起搞
+
+
+
+# 31.下一个排列
+
+参考下lc题解区，先理解下字典序。
+
+Java：
+
+```java
+class Solution {
+public void nextPermutation(int[] nums) {
+        int i = nums.length - 2;
+        //找到^形状的凸点，拿到凸点左一位的位置
+        while (i >= 0 && nums[i] >= nums[i + 1]) {
+            i--;
+        }
+    	//说明有转折点
+        if (i >= 0) {
+            //从后往前找第一个大于nums[i]值的位置，将他们交换
+            for (int j = nums.length - 1; j > i; j--) {
+                if (nums[j] > nums[i]) {
+                    swap(nums, i, j);
+                    //将转折点开始的数组改为升序，就是下一个字典序
+                    reverse(nums, i + 1, nums.length - 1);
+                    return;
+                }
+            }
+        }
+    	//如果i<0，说明整个数组是降序的，直接逆序即可
+        reverse(nums, 0, nums.length - 1);
+
+    }
+
+
+    private void reverse(int[] nums, int i, int j) {
+        while (i < j) {
+            swap(nums, i++, j--);
+        }
+    }
+
+    private void swap(int[] nums, int i, int j) {
+        nums[i] = nums[i] ^ nums[j];
+        nums[j] = nums[i] ^ nums[j];
+        nums[i] = nums[i] ^ nums[j];
+    }
+
+
+}
+```
+
+
+
+![image-20200725134430007](../img/image-20200725134430007.png)
+
+
+
+
+
+# 32.最长有效括号(hard)未解决
+
+
+
+
+
+# 33.搜索旋转排序数组
+
+二分查找：
+
+这种带有旋转点的题目，基本思路就是判断中间值和右侧值的大小关系，
+
+中间值大于右侧值，说明左侧是单调区间
+
+中间值小于右侧值，说明右侧是单调区间
+
+```java
+class Solution {
+    public int search(int[] nums, int target) {
+        int left = 0;
+        int right = nums.length - 1;
+        int mid = 0;
+        while (left <= right) {
+            mid = left + (right - left) / 2;
+            if (nums[mid] == target) {
+                return mid;
+                //说明左侧是有序的
+            } else if (nums[mid] > nums[right]) {
+                if (target >= nums[left] && target < nums[mid]) {
+                    right = mid - 1;
+                } else {
+                    left = mid + 1;
+                }
+                //说明右侧是有序的
+            } else {
+                if (target <= nums[right] && target > nums[mid]) {
+                    left = mid + 1;
+                } else {
+                    right = mid - 1;
+                }
+            }
+        }
+        return -1;
+    }
+}
+```
+
+
+
+![image-20200725151911694](../img/image-20200725151911694.png)
+
+# 34.在排序数组中查找元素的第一个和最后一个位置
+
+参考lc题解区 labuladong 的解析
+
+```java
+class Solution {
+   public int[] searchRange(int[] nums, int target) {
+        int resLeft = searchLeft(nums, target);
+        int resRight = searchRight(nums,target);
+        return new int[]{resLeft,resRight};
+
+    }
+
+    private int searchLeft(int[] nums, int target) {
+        int left = 0;
+        int right = nums.length - 1;
+        while (left <= right) {
+             int mid = left + (right - left) / 2;
+            //大于或者等于目标值，都更新右侧边界
+            if (nums[mid] >= target) {
+                right = mid - 1;
+            } else {
+                left = mid + 1;
+            }
+        }
+        //判断是否越界
+        if (left == nums.length || nums[left] != target) {
+            return -1;
+        }
+        return left;
+    }
+
+    private int searchRight(int[] nums, int target) {
+        int left = 0;
+        int right = nums.length - 1;
+        while (left <= right) {
+           int mid = left + (right - left) / 2;
+            //小于或者等于目标值，都更新左侧边界
+            if (nums[mid] <= target) {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+        //判断是否越界
+        if (right <0|| nums[right] != target) {
+            return -1;
+        }
+        return right;
+    }
+}
+```
+
+
+
+![image-20200725155745286](../img/image-20200725155745286.png)
+
+
+
+# 35.搜索插入位置
+
+二分查找:
+
+```java
+class Solution {
+    public int searchInsert(int[] nums, int target) {
+        int left = 0;
+        int right = nums.length - 1;
+        int mid;
+        while (left <= right) {
+            mid = left + (right - left) / 2;
+            if (nums[mid] == target) {
+                return mid;
+            } else if (nums[mid] < target) {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+        return left;
+    }
+}
+```
+
+
+
+
+
+![image-20200725162529915](../img/image-20200725162529915.png)
+
+
+
+
+
+# 36.有效的数独
+
+判断在哪个方块：(i /3)*3+j/3 ，一个点的坐标是( i, j ) 。想按照图中的0~8层次排列。 j/3 就是列坐标了，列坐标都是一个一个累加的，每次递进1.
+
+i/3是横坐标，也就是行数，行数的加权是3，递进关系是0-3-6.所以拿到一个坐标判断在哪块就是 (i/3)*3+j/3。
+
+```java
+class Solution {
+    public boolean isValidSudoku(char[][] board) {
+        //记录行、列、小格子
+        Map<Integer, Set<Integer>> row = new HashMap<>();
+        Map<Integer, Set<Integer>> col = new HashMap<>();
+        Map<Integer, Set<Integer>> box = new HashMap<>();
+        for (int i = 0; i < 9; i++) {
+            row.put(i, new HashSet<>());
+            col.put(i, new HashSet<>());
+            box.put(i, new HashSet<>());
+        }
+        for (int i = 0; i < 9; i++) {
+            for (int j = 0; j < 9; j++) {
+                int temp = board[i][j] - '0';
+                if (temp < 0 || temp > 9) {
+                    continue;
+                }
+                //在哪个格子里面
+                int boxNum = (i / 3) * 3 + j / 3;
+                //行、列、格子中已经包含这个值，返回false
+                if (row.get(i).contains(temp) || col.get(j).contains(temp) || box.get(boxNum).contains(temp)) {
+                    return false;
+                }
+                //否则就添加到对应行、列、格子的HashSet中
+                row.get(i).add(temp);
+                col.get(j).add(temp);
+                box.get(boxNum).add(temp);
+            }
+        }
+        return true;
+    }
+}
+```
+
+
+
+
+
+![image-20200725171529758](../img/image-20200725171529758.png)
+
+
+
+# 37.解数独(hard) 未解决
+
+hard跳过，周末一起解决
+
+
+
+# 38.外观数列
+
+题目的意思是对序列前一个数进行报数，数列第一项不是1吗，那第二项就报第一项的有1个1，输出11，然后第三项就在第二项的基础上报数，第二项是11，第三项不就是2个1么，然后输出21。。。
+
+每一项都是对前一项的报数。
+
+```java
+class Solution {
+    public String countAndSay(int n) {
+    if (n == 1) {
+            return "1";
+        }
+        StringBuilder sb = new StringBuilder();
+        //找到n-1的结果
+        String str = countAndSay(n - 1);
+        //对n-1的结果进行报数
+        int i =0;
+        while (i<str.length()){
+            char temp = str.charAt(i);
+            int val = temp-'0';
+            int num = 1;
+            while (i+1<str.length()&&temp==str.charAt(i+1)){
+                i++;
+                num++;
+            }
+            sb.append(num+""+val);
+            i++;
+        }
+        return sb.toString();
+    }
+}
+```
+
+
+
+![image-20200725181855415](../img/image-20200725181855415.png)
+
+
+
+# 39.组合总和
+
+回溯法：
+
+往结果集中添加集合时候，需要new一个list，把元素复制过去添加。。不能犯直接添加引用过去这种低级错误了。
+
+Java：
+
+```java
+class Solution {
+ 
+    public List<List<Integer>> combinationSum(int[] candidates, int target) {
+        List<List<Integer>> res = new ArrayList<>();
+        //给数组排序，方便后面剪枝
+        Arrays.sort(candidates);
+        backtrack(new LinkedList<Integer>(),candidates,0,target,res);
+        return res;
+    }
+
+    private void backtrack(LinkedList<Integer> list, int[] nums, int index, int target, List<List<Integer>> res) {
+        if (target==0){
+            res.add(new LinkedList<>(list));
+            return;
+        }
+        for (int i = index; i < nums.length; i++) {
+            //数组已排序，如果这个条件成立，之后的值肯定都不符合条件，可以跳出循环了
+            if (target-nums[i]<0){
+                break;
+            }
+            list.add(nums[i]);
+            //同样元素可以重复利用，索引仍然从i开始
+            backtrack(list,nums,i,target-nums[i],res);
+            list.removeLast();
+        }
+    }
+}
+```
+
+PS：labuladong的回溯法总结写的真的棒。
+
+![image-20200725201955846](../img/image-20200725201955846.png)
+
+
+
+# 40.组合总和 II
+
+回溯法：
+
+和39题基本一致。
+
+改动有两点：1 是在添加元素递归调用之前先判断一下，该元素的值是否和上一个元素的值相同，如果相同，则跳过。
+
+2 是递归调用时候，该元素不可再用，要从下一个元素开始。
+
+第一遍刷题时候参考了这位大佬的解答，灰常清晰：[参考解析](https://leetcode-cn.com/problems/combination-sum-ii/solution/hui-su-suan-fa-jian-zhi-python-dai-ma-java-dai-m-3/)
+
+
+
+```java
+class Solution {
+     public List<List<Integer>> combinationSum2(int[] candidates, int target) {
+        List<List<Integer>> res = new ArrayList<>();
+        Arrays.sort(candidates);
+        backtrack(new LinkedList<Integer>(),candidates,0,target,res);
+        return res;
+    }
+
+    private void backtrack(LinkedList<Integer> list, int[] nums, int index, int target, List<List<Integer>> res) {
+        if (target==0){
+            res.add(new LinkedList<>(list));
+            return;
+        }
+        for (int i = index; i < nums.length; i++) {
+            if (target-nums[i]<0){
+                break;
+            }
+            //同一个for循环中，出现的值都是在树的同一个层级上，让i>index 可以保留不同层级上的相同元素，过滤掉同一层级上的相同元素，避免结果中出现重复的解
+            if(i>index&&nums[i]==nums[i-1]){
+                continue;
+            }
+            list.add(nums[i]);
+            backtrack(list,nums,i+1,target-nums[i],res);
+            list.removeLast();
+        }
+    }
+}
+```
+
+
+
+
+
+![image-20200725205113544](../img/image-20200725205113544.png)
+
+
+
+# 41.缺失的第一个正数(hard)未解决
+
+hard周末统一搞
+
+
+
+# 42.接雨水(hard)未解决
+
+hard周末统一搞
+
+
+
+# 43.字符串相乘 未解决
+
+参考lc题解区，两种解法：
+
+1、逐位相乘，再相加。
+
+```java
+
+```
+
+
+
+# 44.通配符匹配(hard)未解决
+
+跳过
+
+
+
+# 45.跳跃游戏(hard)未解决
+
+跳过
+
+
+
+# 46.全排列
+
+回溯法：
+
+注意要使用一个标记数组，标记哪个值已经用过了。其他的和之前的组合题目差不多。
+
+```java
+class Solution {
+     public List<List<Integer>> permute(int[] nums) {
+        List<List<Integer>> res = new ArrayList<>();
+        boolean[] used = new boolean[nums.length];
+        LinkedList<Integer> list = new LinkedList<>();
+        backtrack(list, 0, used, nums, res);
+        return res;
+
+    }
+
+    private void backtrack(LinkedList<Integer> list, int start, boolean[] used, int[] nums, List<List<Integer>> res) {
+        if (start == nums.length) {
+            res.add(new ArrayList<>(list));
+            return;
+        }
+        for (int i = 0; i < nums.length; i++) {
+            if (!used[i]) {
+                list.add(nums[i]);
+                used[i] = true;
+                backtrack(list, start + 1, used, nums, res);
+                used[i] = false;
+                list.removeLast();
+            }
+        }
+    }
+        
+}
+```
+
+
+
+![image-20200726000527762](../img/image-20200726000527762.png)
+
+
+
+# 47.全排列 ||
+
+和上个题差不多，有重复元素的，都建议对数组排序，方便剪枝。
+
+```java
+class Solution {
+      public List<List<Integer>> permuteUnique(int[] nums) {
+        List<List<Integer>> res = new ArrayList<>();
+        boolean[] used = new boolean[nums.length];
+         //排序，方便剪枝
+        Arrays.sort(nums);
+        LinkedList<Integer> list = new LinkedList<>();
+        backtrack(list, 0, used, nums, res);
+        return res;
+
+    }
+
+    private void backtrack(LinkedList<Integer> list, int start, boolean[] used, int[] nums, List<List<Integer>> res) {
+        if (start == nums.length) {
+            res.add(new ArrayList<>(list));
+            return;
+        }
+        for (int i = 0; i < nums.length; i++) {
+            if (!used[i]) {
+                //去重  加上!used[i-1]判断是为了同层级值相同的值进行去重，同时不影响不同层级相同的值。
+                if (i>0&&nums[i]==nums[i-1]&&!used[i-1]){
+                    continue;
+                }
+                list.add(nums[i]);
+                used[i] = true;
+                backtrack(list, start + 1, used, nums, res);
+                used[i] = false;
+                list.removeLast();
+            }
+        }
+    }
+}
+```
+
+[这个解析很赞](https://leetcode-cn.com/problems/permutations-ii/solution/hui-su-suan-fa-python-dai-ma-java-dai-ma-by-liwe-2/)
+
+![image-20200726001839072](../img/image-20200726001839072.png)
+
+# 48.旋转图像
+
+先转置矩阵，再左右翻转。
+
+```java
+class Solution {
+  public void rotate(int[][] matrix) {
+        if (matrix.length == 0) {
+            return;
+        }
+        //转置矩阵, i,j = j,i 就行
+        for (int i = 0; i < matrix.length; i++) {
+            //注意j从i开始，要不反转两次就变回去了
+            for (int j = i; j < matrix[0].length; j++) {
+                int temp = matrix[i][j];
+                matrix[i][j] = matrix[j][i];
+                matrix[j][i] = temp;
+            }
+        }
+        //左右翻转
+        int colNum = matrix[0].length;
+        for (int i = 0; i < matrix.length; i++) {
+            //注意j只需要到一半，要不又变回去了
+            for (int j = 0; j < matrix[0].length/2; j++) {
+                int temp = matrix[i][j];
+                matrix[i][j] = matrix[i][colNum - 1 - j];
+                matrix[i][colNum - 1 - j] = temp;
+            }
+        }
+    }
+}
+```
+
+
+
+![image-20200726003239037](../img/image-20200726003239037.png)
+
+
+
+49.
