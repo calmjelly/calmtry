@@ -519,6 +519,43 @@ class Solution {
 
 //TODO 周末再搞。
 
+动态规划：
+
+
+
+```java
+class Solution {
+     public boolean isMatch(String s,String p){
+         if (s == null || p == null) {
+            return false;
+        }
+        boolean[][] dp = new boolean[s.length() + 1][p.length() + 1];
+        dp[0][0] = true;
+        for (int i = 0; i < p.length(); i++) {
+            if (p.charAt(i)=='*'&&dp[0][i-1]){
+                dp[0][i+1]=true;
+            }
+        }
+        for (int i = 0; i < s.length(); i++) {
+            for (int j = 0; j < p.length(); j++) {
+                if (p.charAt(j)=='.'||p.charAt(j)==s.charAt(i)){
+                    dp[i+1][j+1]=dp[i][j];
+                }
+                if (p.charAt(j)=='*'){
+                    if (p.charAt(j-1)!=s.charAt(i)&&p.charAt(j-1)!='.'){
+                        dp[i+1][j+1]=dp[i+1][j-1];
+                    }else {
+                        dp[i+1][j+1]=(dp[i+1][j]||dp[i][j+1]||dp[i+1][j-1]);
+                    }
+                }
+            }
+        }
+        return dp[s.length()][p.length()];
+        
+        }
+    }
+```
+
 
 
 
@@ -2112,4 +2149,719 @@ class Solution {
 
 
 
-49.
+# 49.字母异位词分组
+
+用长度为26的数组，对应位数表示a~z出现的次数。
+
+异位词的特征就是，字母一样，字母出现的次数也一样。就是考虑如何表示一个词包含的字母以及对应字母的次数。
+
+字母只有26个，用一个int[]数组的对应位置表示，次数就是数字，把他转成一个String，不同的位置中间使用‘#’连接起来，防止出现某个字母出现次数大于10，边界无法判断的问题。
+
+参考题解区官方题解。
+
+```java
+class Solution {
+    public List<List<String>> groupAnagrams(String[] strs) {
+        if (strs.length == 0) {
+            return new ArrayList<>();
+        }
+        Map<String, List<String>> map = new HashMap<>();
+        int[] count = new int[26];
+        for (String s : strs) {
+            Arrays.fill(count, 0);
+            for (char c : s.toCharArray()) {
+                count[c - 'a']++;
+            }
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 26; i++) {
+                sb.append('#')
+                        .append(count[i]);
+            }
+            String key = sb.toString();
+            if (!map.containsKey(key)){
+                map.put(key,new ArrayList<>());
+            }
+            map.get(key).add(s);
+        }
+        return new ArrayList<>(map.values());
+    }
+}
+```
+
+
+
+![image-20200727234101693](../img/image-20200727234101693.png)
+
+
+
+# 50.Pow(x,n)
+
+就想到了暴力法，一步一步累乘。。一直超时。
+
+参考题解区，快速幂。
+
+```java
+class Solution {
+    public double myPow(double x, int n) {
+        long N = n;
+        if (N < 0) {
+            x = 1 / x;
+            N = -N;
+        }
+        double res = 1;
+        double current_product = x;
+        for (long i = N; i > 0; i /= 2) {
+            if ((i%2)==1) {
+                res *= current_product;
+            }
+            current_product*=current_product;
+        }
+        return res;
+    }
+}
+```
+
+
+
+
+
+![image-20200727235657212](../img/image-20200727235657212.png)
+
+
+
+--2020年8月10日21:28:33
+
+--短短两周，从对未来生活的无限憧憬和向往到收到了一个又一个晴天霹雳，人生无常。
+
+
+
+# 51.N皇后
+
+参考labuladong的解答。
+
+```java
+class Solution {
+     // 思路：每一层 --》 查看每个节点的这一列，左上，右上是否符合条件
+    List<List<String>> res;
+
+    //n皇后
+    public List<List<String>> solveNQueens(int n){
+        if (n <= 0){
+            return null;
+        }
+
+        res = new LinkedList<>();
+        //存放每一条结果的
+        char[][] board = new char[n][n];
+        //先将其填满”.“
+        for (char[] chars : board){
+            Arrays.fill(chars,'.');
+        }
+        //开始回溯
+        backtrace(board,0);
+        return res;
+    }
+
+    /**
+     * 路径：board中小于row的那些行都已经成功放置了皇后
+     * 可选择列表: 第row行的所有列都是放置Q的选择
+     * 结束条件: row超过board的最后一行
+     *
+     * @param board
+     * @param row
+     */
+    public void backtrace(char[][] board, int row){
+        //边界
+        if (row == board.length){
+            //由于用的是char[][],所以还要转成list，因为返回的是List<List<String>>
+            res.add(charToString(board));
+            return;
+        }
+
+        for (int i = 0; i < board.length; i++) {
+            //如果不满足要求就剪枝
+            if (!isValid(board,row,i)){
+                continue;
+            }
+            board[row][i] = 'Q';
+            //到下一行
+            backtrace(board,row+1);
+            //回溯
+            board[row][i] = '.';
+        }
+    }
+
+    /**
+     * 将char[][]转成List<String>
+     * @param array
+     * @return
+     */
+    public List<String> charToString(char[][] array){
+        List<String> result = new LinkedList();
+        for (char[] chars : array){
+            //将字符串数组添加进List中
+            result.add(String.valueOf(chars));
+        }
+        return result;
+    }
+
+    /**
+     * 判断board数组是否符合n皇后规定
+     * @param board
+     * @param row
+     * @param col
+     * @return
+     */
+    public boolean isValid(char[][] board,int row,int col){
+        //这一列不能有Q
+        for (int i = 0; i< row; i++){
+            if (board[i][col] == 'Q'){
+                return false;
+            }
+        }
+        //左上一条对角不能有Q
+        for (int i = row - 1, j = col - 1; i >= 0 && j >= 0; i--, j--) {
+            //有出现Q
+            if (board[i][j] == 'Q') {
+                return false;
+            }
+        }
+        //同理，右上一条对角不能有Q
+        for (int i = row - 1, j = col + 1; i >= 0 && j < board.length; i--, j++) {
+            if (board[i][j] == 'Q'){
+                return false;
+            }
+        }
+        return true;
+    }
+}
+```
+
+# 52.N皇后 II（未解决）
+
+参考题解区
+
+# 53.最大子序和
+
+动态规划类题目：
+
+从0开始遍历数组，每当遍历一个新元素时候，检查当前自序和是否<=0，如果是，说明新元素加上该自序和不会比这个自序和更大，也即对结果无增益，直接更新自序和为当前元素值即可。
+
+```java
+class Solution {
+    public int maxSubArray(int[] nums) {
+        int ans = nums[0];
+        int sum = 0;
+        for(int num : nums){
+            if(sum > 0){
+                sum += num;
+            } else {
+                sum = num;
+            }
+            ans = Math.max(ans, sum);
+        }
+        return ans;
+    }
+}
+```
+
+# 54.螺旋矩阵
+
+只要圈数计算没错，这个题就比较简单了。
+
+圈数=(Min(行数，列数)+1)/2;
+
+```java
+class Solution {
+  public List<Integer> spiralOrder(int[][] matrix) {
+        List<Integer> list = new ArrayList<Integer>();
+        if(matrix == null || matrix.length == 0)
+    		return list;
+        int m = matrix.length;
+        int n = matrix[0].length;
+        int i = 0; 
+
+        //统计矩阵从外向内的层数，如果矩阵非空，那么它的层数至少为1层
+        int count = (Math.min(m, n)+1)/2;
+        //从外部向内部遍历，逐层打印数据
+        while(i < count) {
+        	for (int j = i; j < n-i; j++) {
+				list.add(matrix[i][j]);
+			}
+        	for (int j = i+1; j < m-i; j++) {
+				list.add(matrix[j][(n-1)-i]);
+			}
+        	
+        	for (int j = (n-1)-(i+1); j >= i && (m-1-i != i); j--) {
+				list.add(matrix[(m-1)-i][j]);
+			}
+        	for (int j = (m-1)-(i+1); j >= i+1 && (n-1-i) != i; j--) {
+				list.add(matrix[j][i]);
+			}
+        	i++;
+        }    
+        return list;
+    }
+
+}
+```
+
+
+
+# 55.跳跃游戏
+
+思路：记录一个最远能到达的位置，并与当前位置的索引相比较，如果小于当前索引说明无论如何都到达不了这个位置。遍历数组，不断更新最远能到达的位置，如果遍历完整个数组，每个位置都能达到，就说明能够跳跃到数组末尾。
+
+```java
+class Solution {
+    public boolean canJump(int[] nums) {
+        int maxJump =0;
+        for(int i=0;i<nums.length;i++){
+            if(i>maxJump){
+                return false;
+            }
+            maxJump = Math.max(maxJump,i+nums[i]);
+        }
+        return true;
+    }
+}
+```
+
+
+
+# 56.合并区间
+
+将二维数组按照每隔数组左区间元素的大小进行排序；
+
+取第一个元素为新数组的起始，遍历这个二维数组，将每个数组的左区间元素和当前数组的右侧区间进行比较，如果左侧元素小于当前数组的右侧元素，说明可以合并，此时还需比较他们的右侧区间谁更大，避免完全包含的情况，之后进行合并即可。
+
+如果左侧元素大于右侧元素，说明没有交集，将当前数组更新为新数组并存入结果集。
+
+```java
+class Solution {
+	public int[][] merge(int[][] intervals) {
+		if (intervals.length <= 1)
+			return intervals;
+
+		// Sort by ascending starting point
+		Arrays.sort(intervals, (i1, i2) -> Integer.compare(i1[0], i2[0]));
+
+		List<int[]> result = new ArrayList<>();
+        //从第一个区间开始
+		int[] newInterval = intervals[0];
+		result.add(newInterval);
+		for (int[] interval : intervals) {
+            //每个新区间的开始和目前已经存储区间的结束作比较，如果新区间开始大于存储区间的结束，说明有交叉，更新储存区间的结束位置
+            //interval是新区间，newInterval是我们的存储区间，一直在更新。
+			if (interval[0] <= newInterval[1]) // Overlapping intervals, move the end if needed
+				newInterval[1] = Math.max(newInterval[1], interval[1]);//不能确定新区间是不是已存储区间的子区间，所以要比较两个区间的尾部，看谁更大
+			else {                             // Disjoint intervals, add the new interval to the list
+              //  节点不连贯，没有交集的，直接存储新节点，并将存储节点更新为新节点开头
+				newInterval = interval;
+				result.add(newInterval);
+			}
+		}
+
+		return result.toArray(new int[result.size()][]);
+	}
+}
+```
+
+
+
+# 57.插入区间
+
+和56题合并区间类似，拿待插入区间和二维数组一个一个比较，如果两个区间有交集就合并，左区间取最小值，右区间取最大值。没有交集就直接插入，这里需要判断下是插入在前面还是后面。
+
+```java
+class Solution {
+  public int[][] insert(int[][] intervals, int[] newInterval) {
+        List<int[]> result = new ArrayList<>();
+      //原二维数组为空，直接添加并返回
+        if (intervals.length == 0) {
+            result.add(newInterval);
+            return result.toArray(new int[result.size()][]);
+        }
+      //遍历数组，只要这个数组尾部小于给定给定数组的开头，说明无交集，直接加到结果集中
+        for (int[] interval : intervals) {
+            if (interval[1] < newInterval[0]) {
+                result.add(interval);
+                //头部大于给定数组的尾部，也说明无交集
+                //出现这种情况，说明当前区间的开头就比要插入区间的结尾大，无交集，所以先把这个新区间插进去，因为新区间更小更靠前。
+                //插进去新区间后，把等待插入的区间更新为当前本应插入但是没插入的老区间。
+            } else if (interval[0] > newInterval[1]) {
+                result.add(newInterval);
+                newInterval = interval;//
+                //余下的情况都是有交集的，更新这个指定数组的头部和尾部，头部要最小的，尾部要最大的。（将指定的数组进行扩张）
+            } else if (interval[0] <= newInterval[1]) {
+                newInterval[0] = Math.min(interval[0], newInterval[0]);
+                newInterval[1] = Math.max(interval[1], newInterval[1]);
+            }
+        }
+        result.add(newInterval);
+        return result.toArray(new int[result.size()][]);
+
+    }
+}
+```
+
+
+
+# 58.最后一个单词的长度
+
+也就是找到最后一个元素的起始位置。
+
+从后往前遍历，记录第一个不是空字符的位置，继续往前遍历，直到字符串开头或者遇到了空字符为止。
+
+```java
+class Solution {
+    public int lengthOfLastWord(String s) {
+        int end = s.length() - 1;
+        //end指向第一个不是空字符的位置
+        while(end >= 0 && s.charAt(end) == ' ') end--;
+        if(end < 0) return 0;
+        int start = end;
+        //start指向遇到的第一个空字符的位置。
+        while(start >= 0 && s.charAt(start) != ' ') start--;
+        return end - start;
+    }
+}
+```
+
+
+
+# 59.螺旋矩阵 II
+
+从1开始，到n*n，和54题差不多，注意边界判定就行。
+
+```java
+class Solution {
+    public int[][] generateMatrix(int n) {
+        int[][] arr = new int[n][n];
+        //j表示圈数
+        int c = 1, j = 0;
+        while (c <= n * n) {
+        //水平从左到右
+            for (int i = j; i < n - j; i++)
+                arr[j][i] = c++;
+            //从右上到右下
+            for (int i = j + 1; i < n - j; i++)
+                arr[i][n - j - 1] = c++;
+            //从右下到左下
+            for (int i = n - j - 2; i >= j; i--)
+                arr[n - j - 1][i] = c++;
+            //从左下到左上
+            for (int i = n -j - 2; i > j; i--)
+                arr[i][j] = c++;
+            //此层完成，开始下一层
+            j++;
+        }
+        return arr;
+    }
+
+}
+```
+
+
+
+# 60.第K个排列（未解决）
+
+只能想到暴力回溯了。。看了有更好的解答：
+
+思路：既然所有的全排列是从小到大，那么可以对每一位的数字进行定位。例如，假如给定题目为（5,46）。固定第一位数，后面4位的全排列数为24，math.ceil(46/24)=2（Math.ceil是向上进位。）,即处于第1位数的第二个循环中，即第一位数为2.同理，对于固定第二位数，math.ceil(（46-24）/6)=4,即处于第2位数的第四个循环中（此时列表移除了已确定的数字2），即第2位数为5.同理，可依次推理出最后结果为“25341”.总复杂度为O（n）.
+
+大佬解答：
+
+```java
+class Solution { 
+    
+    public String getPermutation(int n, int k) {
+        /**
+        直接用回溯法做的话需要在回溯到第k个排列时终止就不会超时了, 但是效率依旧感人
+        可以用数学的方法来解, 因为数字都是从1开始的连续自然数, 排列出现的次序可以推
+        算出来, 对于n=4, k=15 找到k=15排列的过程:
+        
+        1 + 对2,3,4的全排列 (3!个)         
+        2 + 对1,3,4的全排列 (3!个)         3, 1 + 对2,4的全排列(2!个)
+        3 + 对1,2,4的全排列 (3!个)-------> 3, 2 + 对1,4的全排列(2!个)-------> 3, 2, 1 + 对4的全排列(1!个)-------> 3214
+        4 + 对1,2,3的全排列 (3!个)         3, 4 + 对1,2的全排列(2!个)         3, 2, 4 + 对1的全排列(1!个)
+        
+        确定第一位:
+            k = 14(从0开始计数)
+            index = k / (n-1)! = 2, 说明第15个数的第一位是3 
+            更新k
+            k = k - index*(n-1)! = 2
+        确定第二位:
+            k = 2
+            index = k / (n-2)! = 1, 说明第15个数的第二位是2
+            更新k
+            k = k - index*(n-2)! = 0
+        确定第三位:
+            k = 0
+            index = k / (n-3)! = 0, 说明第15个数的第三位是1
+            更新k
+            k = k - index*(n-3)! = 0
+        确定第四位:
+            k = 0
+            index = k / (n-4)! = 0, 说明第15个数的第四位是4
+        最终确定n=4时第15个数为3214 
+        **/
+        
+        StringBuilder sb = new StringBuilder();
+        // 候选数字
+        List<Integer> candidates = new ArrayList<>();
+        // 分母的阶乘数
+        int[] factorials = new int[n+1];
+        factorials[0] = 1;
+        int fact = 1;
+        //candidates存放1~n的候选数字
+        //factorials存放 f[1]=1！、f[2]=2！、3！。。。n！
+        for(int i = 1; i <= n; ++i) {
+            candidates.add(i);
+            fact *= i;
+            factorials[i] = fact;
+        }
+        //让k从0开始。（默认K的范围为1~9，改为0~8）
+        k -= 1;
+        //从(n-1)!开始
+        for(int i = n-1; i >= 0; --i) {
+            // 计算候选数字的index,也即 k/(n-1)!   newK/(n-2)!....这样
+            int index = k / factorials[i];//这里取的是整数部分，舍弃了余数
+            sb.append(candidates.remove(index));
+            k -= index*factorials[i];//减的时候要把整数部分*除数，也即得到的K是上次计算的余数。
+        }
+        return sb.toString();
+    }
+}
+```
+
+
+
+另外一个大佬的解答：
+
+```java
+public class Solution {
+
+    /**
+     * 记录数字是否使用过
+     */
+    private boolean[] used;
+
+    /**
+     * 阶乘数组
+     */
+    private int[] factorial;
+
+    private int n;
+    private int k;
+    /**
+     * 从根结点到叶子结点的路径
+     */
+    private List<Integer> path;
+
+    public String getPermutation(int n, int k) {
+        this.n = n;
+        this.k = k;
+        used = new boolean[n + 1];
+        Arrays.fill(used, false);
+
+        // 计算阶乘数组
+        factorial = new int[n + 1];
+        factorial[0] = 1;
+        for (int i = 1; i <= n; i++) {
+            factorial[i] = factorial[i - 1] * i;
+        }
+
+        path = new ArrayList<>(n);
+        dfs(0);
+
+        StringBuilder stringBuilder = new StringBuilder();
+        for (Integer c : path) {
+            stringBuilder.append(c);
+        }
+        return stringBuilder.toString();
+    }
+
+    /**
+     * @param index 在这一步之前已经选择了几个数字，其值恰好等于这一步需要确定的索引位置
+     * @return
+     */
+    private void dfs(int index) {
+        if (index == n) {
+            return;
+        }
+
+        // 还未确定的数字的全排列的个数，第 1 次进入的时候是 n - 1
+        int cnt = factorial[n - 1 - index];
+        for (int i = 1; i <= n; i++) {
+            if (used[i]) {
+                continue;
+            }
+            if (cnt < k) {
+                k -= cnt;
+                continue;
+            }
+            path.add(i);
+            used[i] = true;
+            dfs(index + 1);
+        }
+    }
+}
+
+
+```
+
+
+
+# 61.旋转链表
+
+lc评论区：说是循环旋转，其实就是将尾部向前数第K个元素作为头，原来的头接到原来的尾上。
+
+```java
+class Solution {
+   public ListNode rotateRight(ListNode head, int k) {
+	int n = 0 ;
+	ListNode b = head ;
+       //遍历链表，找个k的位置，如果超出链表长度，则先记录下链表长度的值，也就是n
+	while(n < k && b != null){
+		b = b.next ;
+		n ++ ;
+	}
+	if(n == 0) return head ;
+	// 如果b为 null，那么k大于节点长度，重新计算。
+	if(b == null){
+        //取余数即可，余数就是链表的断开点
+		k %= n ;
+		if(k == 0) return head;
+        //从头开始遍历，遍历到断开点的位置，循环后b在断开点处
+		for(b = head,n = 0;n < k;n ++){
+			b = b.next ;
+		}
+	}
+       //存储头结点的位置
+	ListNode kPre = head ;
+       //两个指针一起向右移动，直到某个指针的后继为null，这时，前面的指针就在断开处左侧，后面的指针需要和现在的head节点连接起来
+	while(b.next != null){
+		b = b.next ;
+		kPre = kPre.next ;
+	}	
+	// 将第 k-1 个后面的节点移动到 head 前。
+    //断开的节点处，后面的节点先存起来，然后断开，把后半截连接到原来链表的开头，返回保存的断开节点(头节点)即可。
+	ListNode kNode = kPre.next ;
+	kPre.next = null ;
+	b.next = head ;
+	return kNode ;
+}
+
+}
+```
+
+------------------>
+
+应该会消失很长一段时间，直到我能从这次的打击中走出来为止吧
+
+
+
+2020年11月12日22:29:02，过去快100天了，生活发生了翻天覆地的变化，不管未来如何，还是应该面对，不管是被迫面对还是真正鼓起勇气面对，总之，不能逃避。
+
+# 62.不同路径
+
+动态规划：
+
+```java
+class Solution {
+    public int uniquePaths(int m, int n) {
+        int[][] dp = new int[m][n];
+        for (int i = 0; i < n; i++) dp[0][i] = 1;
+        for (int i = 0; i < m; i++) dp[i][0] = 1;
+        for (int i = 1; i < m; i++) {
+            for (int j = 1; j < n; j++) {
+                dp[i][j] = dp[i - 1][j] + dp[i][j - 1];
+            }
+        }
+        return dp[m - 1][n - 1];  
+    }
+}
+```
+
+
+
+# 63.不同路径 2
+
+动态规划，还是建议用官方题解那样的，用二维dp去理解会简单点。
+
+```java
+class Solution {
+    public int uniquePathsWithObstacles(int[][] obstacleGrid) {
+
+        int R = obstacleGrid.length;//行数
+        int C = obstacleGrid[0].length;//列数
+
+        //如果入口处有障碍，直接返回
+        // If the starting cell has an obstacle, then simply return as there would be
+        // no paths to the destination.
+        if (obstacleGrid[0][0] == 1) {
+            return 0;
+        }
+
+        // Number of ways of reaching the starting cell = 1.
+        obstacleGrid[0][0] = 1;
+
+        // Filling the values for the first column
+        for (int i = 1; i < R; i++) {
+            //填充第一行，第一行只能由左侧值获取，判断他是不是障碍物，如果不是，就等于左侧值。
+            obstacleGrid[i][0] = (obstacleGrid[i][0] == 0 && obstacleGrid[i - 1][0] == 1) ? 1 : 0;
+        }
+
+        // Filling the values for the first row填充第一列，和填充第一行类似
+        for (int i = 1; i < C; i++) {
+            obstacleGrid[0][i] = (obstacleGrid[0][i] == 0 && obstacleGrid[0][i - 1] == 1) ? 1 : 0;
+        }
+
+        // Starting from cell(1,1) fill up the values
+        // No. of ways of reaching cell[i][j] = cell[i - 1][j] + cell[i][j - 1]每个值都等于左边的值+上面的值，也就是动态规划里面的转移公式
+        // i.e. From above and left.
+        for (int i = 1; i < R; i++) {
+            for (int j = 1; j < C; j++) {
+                if (obstacleGrid[i][j] == 0) {
+                    obstacleGrid[i][j] = obstacleGrid[i - 1][j] + obstacleGrid[i][j - 1];
+                } else {
+                    obstacleGrid[i][j] = 0;
+                }
+            }
+        }
+
+        // Return value stored in rightmost bottommost cell. That is the destination.
+        return obstacleGrid[R - 1][C - 1];
+    }
+}
+```
+
+
+
+另一种解法，思路类似：
+
+```java
+  public int uniquePathsWithObstacles(int[][] obstacleGrid) {
+        //取出二维数组的列数。
+        int width = obstacleGrid[0].length;
+        //DP数组，DP方程为 new_dp[j]=old_dp[j]+old_dp[j-1]
+        int[] dp = new int[width];
+        //边界条件
+        dp[0] = 1;
+        //对一个二维数组，取出每一行（row行，col列，再次强调。。）
+        for (int[] row : obstacleGrid) {
+            //遍历该行，width就是列数，也即每一行元素的个数
+            for (int j = 0; j < width; j++) {
+                //如果有障碍物，就
+                if(row[j] == 1){
+                    dp[j] = 0;
+                }else if(j > 0){
+                    dp[j] += dp[j-1];
+                }
+            }
+        }
+        return dp[width -1];
+    }
+```
+
