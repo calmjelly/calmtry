@@ -42,5 +42,3 @@ KafkaProducer  是线程安全的，可以在多个线程中共享单个KafkaPro
 
 
 
-
-
