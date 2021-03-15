@@ -121,3 +121,130 @@ class Solution {
 }
 ```
 
+## 621.任务调度器
+
+![image-20210315003308002](../img/image-20210315003308002.png)
+
+题意：给了不同的任务，任务如何排列花费时间最少，相同的任务在执行时候有冷却时间的限制，比如执行了任务A，那么下一次执行A之前，必须等待足够N的时间，才能够再次A类型的任务。
+
+解答：给了三个实例，看完后感觉就是，应该选择多个不同的任务(也即新选择的任务尽可能不在冷却时间中)来回切换，并且切换的任务数不大于冷却时间最好(为了给之后的任务尽可能多的提供来回切换的机会)。为了达成这个条件，每次选择的就应该是不在冷却中、并且剩余最多的任务。
+
+所以应该选出数量最多的任务进行分组，每个组的大小应该为冷却时间+1，这样第一组执行完，轮到第二组的时候，数量最多的任务刚刚好冷却完毕。然后将剩余任务依次放入分组中即可。这样，只需要计算最后一个分组有多少个元素，就可以得到最短时间了。
+
+解析中的桶思想和这个差不多。
+
+![image-20210315233937423](../img/image-20210315233937423.png)
+$$
+(maxTimes-1)*(n+1)+maxCount
+$$
+如果冷却时间足够短，任务种类足够多，上面的公式计算式错误的，例如冷却时间1秒，任务为5A 4B 3C，按照公式计算的结果是 (5-1)*2+1=9,实际值应该就是任务的个数，也即是12. 所以最终应该计算两者，并取较大的值作为正确结果。
+
+```java
+class Solution {
+    public int leastInterval(char[] tasks, int n) {
+        int[] taskNumArr = new int[26];
+        //统计26中任务出现的次数
+        for (char cr : tasks) {
+            taskNumArr[cr - 'A']++;
+        }
+        //排序
+        Arrays.sort(taskNumArr);
+        //最大次数在末尾，也即maxTimes，并计算和它值相等的任务种类
+        //也即maxCount，最后一个分组的任务个数
+        int maxTimes = taskNumArr[taskNumArr.length - 1];
+        int maxCount = 1;
+        for (int i = taskNumArr.length - 2; i > 0; i--) {
+            if (taskNumArr[i] == maxTimes) {
+                maxCount++;
+            } else {
+                break;
+            }
+        }
+        return Math.max(tasks.length, (maxTimes - 1) * (n + 1) + maxCount);
+    }
+}
+```
+
+## 617.合并二叉树
+
+![image-20210316002932986](../img/image-20210316002932986.png)
+
+题意：合并二叉树。。对应位置值合并，构建一个新的二叉树。
+
+递归
+
+```java
+class Solution {
+    public TreeNode mergeTrees(TreeNode root1, TreeNode root2) {
+        if (root1 == null) {
+            return root2;
+        }
+        if (root2 == null) {
+            return root1;
+        }
+        TreeNode treeNode = new TreeNode(root1.val + root2.val);
+        treeNode.left = mergeTrees(root1.left, root2.left);
+        treeNode.right = mergeTrees(root1.right, root2.right);
+        return treeNode;
+    }
+}
+```
+
+
+
+迭代，层序遍历，
+
+广度优先遍历(层序)用队列，深度优先遍历(前中后序)用栈。
+
+```java
+class Solution {
+    public TreeNode mergeTrees(TreeNode root1, TreeNode root2) {
+        if (root1 == null) {
+            return root2;
+        }
+        if (root2 == null) {
+            return root1;
+        }
+        Queue<TreeNode> queueRes = new LinkedList<>();
+        Queue<TreeNode> rootQueue1 = new LinkedList<>();
+        Queue<TreeNode> rootQueue2 = new LinkedList<>();
+        TreeNode res = new TreeNode(root1.val + root2.val);
+        queueRes.offer(res);
+        rootQueue1.offer(root1);
+        rootQueue2.offer(root2);
+        while (rootQueue1.size() != 0 && rootQueue2.size() != 0) {
+            TreeNode treeNode1 = rootQueue1.poll();
+            TreeNode treeNode2 = rootQueue2.poll();
+            TreeNode resNode = queueRes.poll();
+            TreeNode left1 = treeNode1.left;
+            TreeNode left2 = treeNode2.left;
+            TreeNode right1 = treeNode1.right;
+            TreeNode right2 = treeNode2.right;
+            if (left1 != null && left2 != null) {
+                TreeNode left = new TreeNode(left1.val + left2.val);
+                resNode.left = left;
+                queueRes.offer(left);
+                rootQueue1.offer(left1);
+                rootQueue2.offer(left2);
+            } else if (left1 == null) {
+                resNode.left = left2;
+            } else {
+                resNode.left = left1;
+            }
+            if (right1 != null && right2 != null) {
+                TreeNode right = new TreeNode(right1.val + right2.val);
+                resNode.right = right;
+                queueRes.offer(right);
+                rootQueue1.offer(right1);
+                rootQueue2.offer(right2);
+            } else if (right1 == null) {
+                resNode.right = right2;
+            } else {
+                resNode.right = right1;
+            }
+        }
+        return res;
+    }
+}
+```
+
