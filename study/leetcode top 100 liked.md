@@ -1,8 +1,10 @@
-# leetcode 最热100题
+# leetcode
 
 刷题是不可能刷题的，这辈子都不可能刷题的，看也看不懂，学也学不会，只能靠着题解区大佬的解答才能维持得了生活的样子，里面个个都是人才，代码写的秀，讲解说的透，我超喜欢这里的！
 
-## 739.每日温度
+## leetcode 最热100题
+
+### 739.每日温度
 
 ![image-20210311232947223](../img/image-20210311232947223.png)
 
@@ -46,7 +48,7 @@ class Solution {
 }
 ```
 
-## 647.回文子串
+### 647.回文子串
 
 ![image-20210312233516206](../img/image-20210312233516206.png)
 
@@ -121,7 +123,7 @@ class Solution {
 }
 ```
 
-## 621.任务调度器
+### 621.任务调度器
 
 ![image-20210315003308002](../img/image-20210315003308002.png)
 
@@ -165,7 +167,7 @@ class Solution {
 }
 ```
 
-## 617.合并二叉树
+### 617.合并二叉树
 
 ![image-20210316002932986](../img/image-20210316002932986.png)
 
@@ -176,12 +178,14 @@ class Solution {
 ```java
 class Solution {
     public TreeNode mergeTrees(TreeNode root1, TreeNode root2) {
+        //如果有一个为null，直接连接剩下的树
         if (root1 == null) {
             return root2;
         }
         if (root2 == null) {
             return root1;
         }
+        //递归构建二叉树
         TreeNode treeNode = new TreeNode(root1.val + root2.val);
         treeNode.left = mergeTrees(root1.left, root2.left);
         treeNode.right = mergeTrees(root1.right, root2.right);
@@ -205,32 +209,41 @@ class Solution {
         if (root2 == null) {
             return root1;
         }
+        //层序遍历的方式，用队列
         Queue<TreeNode> queueRes = new LinkedList<>();
         Queue<TreeNode> rootQueue1 = new LinkedList<>();
         Queue<TreeNode> rootQueue2 = new LinkedList<>();
+        //初始化，从根节点开始
         TreeNode res = new TreeNode(root1.val + root2.val);
         queueRes.offer(res);
         rootQueue1.offer(root1);
         rootQueue2.offer(root2);
+        //两棵树的队列均不为空
+        //若有一个队列为空，则说明其中某个树已经完全遍历完成，另一棵树余下的子节点已经直接连接到合并树上了，不需要再计算
         while (rootQueue1.size() != 0 && rootQueue2.size() != 0) {
+            //3队列头元素出队
             TreeNode treeNode1 = rootQueue1.poll();
             TreeNode treeNode2 = rootQueue2.poll();
             TreeNode resNode = queueRes.poll();
+            //拿到左右子节点
             TreeNode left1 = treeNode1.left;
             TreeNode left2 = treeNode2.left;
             TreeNode right1 = treeNode1.right;
             TreeNode right2 = treeNode2.right;
+            //如果左孩子均不为空，则新建节点并入队，同时，两个左节点也各自入队
             if (left1 != null && left2 != null) {
                 TreeNode left = new TreeNode(left1.val + left2.val);
                 resNode.left = left;
                 queueRes.offer(left);
                 rootQueue1.offer(left1);
                 rootQueue2.offer(left2);
+             //若有一个为null，则直接将余下的节点连接起来即可
             } else if (left1 == null) {
                 resNode.left = left2;
             } else {
                 resNode.left = left1;
             }
+            //右孩子同理
             if (right1 != null && right2 != null) {
                 TreeNode right = new TreeNode(right1.val + right2.val);
                 resNode.right = right;
@@ -248,3 +261,108 @@ class Solution {
 }
 ```
 
+### 581.最短无需连续子数组
+
+![image-20210316233032969](../img/image-20210316233032969.png)
+
+解答1：将数组排序，然后比照着原数组，左边第一个不同的元素和右边第一个不同的元素，它们的差就是所求。
+
+```java
+class Solution {
+    public int findUnsortedSubarray(int[] nums) {
+        int[] tempArr = nums.clone();
+        //排序
+        Arrays.sort(tempArr);
+        //初始化值left应该在最右侧，right应该在最左侧
+        //考虑下数组整体逆序的情况
+        int left =nums.length - 1;
+        int right = 0;
+        //比较位置的不同
+        for (int i = 0; i < nums.length; i++) {
+            if (nums[i] != tempArr[i]) {
+                left = i;
+                break;
+            }
+        }
+        for (int i = nums.length - 1; i >= 0; i--) {
+            if (nums[i] != tempArr[i]) {
+                right = i;
+                break;
+            }
+        }
+        //差值+1即为所求
+        return right - left > 0 ? right - left + 1 : 0;
+    }
+}
+```
+
+解答2：其实就是寻找数组里面所有逆序子数组中最大和最小的元素，然后寻找他们在原数组应该放置的正确的位置。
+
+```java
+class Solution {
+    public int findUnsortedSubarray(int[] nums) {
+        int min = Integer.MAX_VALUE;
+        int max = Integer.MIN_VALUE;
+        //寻找所有 *逆序* 子数组中的最大值和最小值 
+        for (int i = 0; i < nums.length - 1; i++) {
+            if (nums[i] > nums[i + 1]) {
+                min = Math.min(min, nums[i + 1]);
+                max = Math.max(max, nums[i]);
+            }
+        }
+        int left = 0;
+        int right = 0;
+        //从左向左找第一个大于逆序子数组最小值的元素位置。
+        //(其实就是将数组排序，然后把逆序子数组的最小值放到它应该放的位置)
+        for (int i = 0; i < nums.length; i++) {
+            if (nums[i] > min) {
+                left = i;
+                break;
+            }
+        }
+        //从右向左寻找第一个小于逆序子数组最大值的元素(原理同上)
+        for (int i = nums.length - 1; i >= 0; i--) {
+            if (nums[i] < max) {
+                right = i;
+                break;
+            }
+        }
+        return right - left > 0 ? right - left + 1 : 0;
+    }
+}
+```
+
+### 560.和为K的子数组
+
+![image-20210318000236883](../img/image-20210318000236883.png)
+
+解答1：暴力法。
+
+外循环从0遍历到数组末尾，内循环以外层循环当前值为数组的头，累计计算所有可能的子数组的和。
+
+```java
+class Solution {
+    public int subarraySum(int[] nums, int k) {
+        int count = 0;
+        for (int i = 0; i < nums.length; i++) {
+            int sum = 0;
+            for (int start = i; start <= nums.length - 1; start++) {
+                sum += nums[start];
+                if (sum == k) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+}
+```
+
+解答2：前缀和+哈希
+
+暴力法中数组的和的计算方式可以优化，不必每次都从一个数开始，逐个数相加。
+
+子数组 [ i, j] 的和可以通过前缀和直接计算：
+$$
+Sum(i,j) = preSum[j]-preSum[i-1]
+$$
