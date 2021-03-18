@@ -387,3 +387,66 @@ class Solution {
 }
 ```
 
+
+
+
+
+
+
+
+
+### 543.二叉树的直径
+
+![image-20210318230035854](../img/image-20210318230035854.png)
+
+解答1：递归计算每隔节点的深度
+
+```java
+class Solution {
+    int maxDia = 0;
+    public int diameterOfBinaryTree(TreeNode root) {
+            help(root);
+            return maxDia;
+        }
+
+        private int help(TreeNode node) {
+            if (node == null) {
+                return 0;
+            }
+            //递归求解以左孩子、右孩子为根节点的深度
+            int left = help(node.left);
+            int right = help(node.right);
+            //两者取其大
+            maxDia = Math.max((left + right), maxDia);
+            //需要计算上从左孩子/右孩子连接本节点的这一段路径。也即+1.
+            return Math.max(left, right) + 1;
+        } 
+}
+```
+
+
+
+### 538.把二叉搜索树转换为累加树
+
+![image-20210318232603107](../img/image-20210318232603107.png)
+
+解答：二叉搜索树的中序遍历(左根右)为单调递增，那么反向遍历，按照右根左的顺序遍历，并累加节点值，即可得到结果。
+
+```java
+class Solution {
+    int sum = 0;
+
+    public TreeNode convertBST(TreeNode root) {
+        if (root != null) {
+            TreeNode tempNode = convertBST(root.right);
+            sum += tempNode.val;
+            root.val = sum;
+            convertBST(root.left);
+        }
+        return root;
+    }
+}
+```
+
+同理可以使用莫斯利遍历反着来写，以后补充。。
+
