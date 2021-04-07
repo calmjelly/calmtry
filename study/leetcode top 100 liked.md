@@ -450,3 +450,130 @@ class Solution {
 
 同理可以使用莫斯利遍历反着来写，以后补充。。
 
+### 494.目标和(DP)
+
+![image-20210407003542852](../img/image-20210407003542852.png)
+
+解法1：递归。
+
+定义一个函数，用来递归的计算数组的和。需要4个参数，数组本身(用来取值)、下标索引(查看递归的进度以及取值)、当前和(判断是否符合结果)、目标和（用于递归判断）
+
+```java
+class Solution {
+    int count=0;
+    public int findTargetSumWays(int[] nums, int S) {
+      calculate(nums,0,0,S);
+      return count;
+    }
+
+    private void calculate(int[] nums,int i,int sum,int S){
+        if (i==nums.length){
+            if (sum==S){
+                count++;
+            }
+        }else {
+            calculate(nums,i+1,sum+nums[i],S);
+            calculate(nums,i+1,sum-nums[i],S);
+        }
+    }
+}
+```
+
+仍不太熟悉dp，mmp。
+
+```
+class Solution {
+    public  int findTargetSumWays(int[] nums, int s) {
+        int sum = 0;
+        for (int i = 0; i < nums.length; i++) {
+            sum += nums[i];
+        }
+        // 绝对值范围超过了sum的绝对值范围则无法得到
+        if (Math.abs(s) > Math.abs(sum)) return 0;
+
+        int len = nums.length;
+        // - 0 +
+        int t = sum * 2 + 1;
+        int[][] dp = new int[len][t];
+        // 初始化
+        if (nums[0] == 0) {
+            dp[0][sum] = 2;
+        } else {
+            dp[0][sum + nums[0]] = 1;
+            dp[0][sum - nums[0]] = 1;
+        }
+
+        for (int i = 1; i < len; i++) {
+            for (int j = 0; j < t; j++) {
+                // 边界
+                int l = (j - nums[i]) >= 0 ? j - nums[i] : 0;
+                int r = (j + nums[i]) < t ? j + nums[i] : 0;
+                dp[i][j] = dp[i - 1][l] + dp[i - 1][r];
+            }
+        }
+        return dp[len - 1][sum + s];
+    }
+}
+```
+
+### 461.汉明距离
+
+![image-20210407224136381](../img/image-20210407224136381.png)
+
+思路：x 和 y 异或操作，然后计算异或后数值里面1的个数。经典位运算 n&(n-1)即可完成。
+
+```java
+class Solution {
+    public int hammingDistance(int x, int y) {
+        int z = x^y;
+        int count = 0;
+        while(z!=0){
+            z=z&(z-1);
+            count++;
+        }
+        return count;
+    }
+}
+```
+
+常见位运算用法：
+
+n & -n   作用 : 保留最后一位 1 ，其他位全变为0；
+
+n & (n-1)   作用：最后一位1变为0；另外可用于判断是否是2的幂。
+
+n & 1    作用：判断奇偶数。 n & 1==0 说明最后一位不是1，所以是偶数
+
+n & (1<<N - 1) 作用：高于N位 的清零
+
+### 448.找到所有数组中消失的数字
+
+![image-20210407234131648](../img/image-20210407234131648.png)
+
+思路：数组中值的范围是1~n，所以将值当做下标进行遍历，遍历到的值将它变为绝对值的相反数，这样，只要数组中缺失的数字是一定修改不到的，所以必定为正数。最后扫描一遍数组，>0的即为所求。
+
+遍历数组，拿数组中值当做下标进行一些操作，必定有缺失的数值会始终无法进行修改操作。。。
+
+```java
+class Solution {
+    public List<Integer> findDisappearedNumbers(int[] nums) {
+        List<Integer> list =  new ArrayList<>();
+
+		for(int i=0;i<nums.length;i++){
+          	nums[Math.abs(nums[i])-1]= -Math.abs(nums[Math.abs(nums[i])-1]);
+     	 }
+       for(int i =0;i<nums.length;i++){
+           if(nums[i]>0){
+               list.add(i+1);
+           }
+       }
+       return list;
+    }
+}
+```
+
+### 438.找到字符串中所有字母异位词
+
+![image-20210407234656328](../img/image-20210407234656328.png)
+
+思路:

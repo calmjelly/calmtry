@@ -310,113 +310,75 @@ class Solution {
 }
 ```
 
-
-
-## 背包问题
-
-
-
-
-
-
-
-
-
-
-
-## 数组
-
-
-
-
-
-## 滑动窗口
-
-
-
-
-
-## 单调栈
-
-
-
-
-
-## 双指针
-
-
-
-## 二分查找
-
-
-
-
-
-
-
-
-
-## 动态规划
-
-
-
-## 回溯
-
-
-
-
-
-
-
-## DFS
-
-
-
-
-
-## BFS
-
-
-
-
-
-## UNION-FIND
-
-
-
-
-
 ## 递归
 
+解决树的问题常常可以用递归的方式。
 
 
 
+### 二叉树的最大深度
+
+![image-20210323083033130](../img/image-20210323083033130.png)
+
+递归方式1：类似于前序遍历。
+
+```
+1、null则返回特殊值
+2、处理结果
+3、递归左孩子
+4、递归右孩子
+5、返回结果
+```
 
 
 
-## 队列
+```java
+class Solution {
+    int result= 0;
+    public int maxDepth(TreeNode root) {
+        help(root, 1);
+        return result;
+    }
 
 
+    private void help(TreeNode root, int depth) {
+        //处理null值
+        if (root == null) {
+            return;
+        }
+        //更新结果集
+        if (root.left == null && root.right == null) {
+            result = Math.max(depth, result);
+        }
+        //处理左孩子
+        help(root.left, depth + 1);
+        //处理右孩子
+        help(root.right, depth + 1);
+    }
+}
+```
 
+递归方式2：
 
+```
+1、null，return一个特殊值
+2、递归处理左孩子
+3、递归处理右孩子
+4、return 结果,根据左孩子、右孩子和当前节点综合处理返回
+```
 
-
-
-## 栈
-
-
-
-
-
-## 链表
-
-
-
-
-
-
-
-
-
-
+```java
+public int maximum_depth(TreeNode root) {
+    //处理null值，return
+	if (root == null) {
+		return 0;                                  
+	}
+    //递归处理左孩子
+	int left_depth = maximum_depth(root.left);
+    //递归处理右孩子
+	int right_depth = maximum_depth(root.right);
+    //更新、return结果
+	return Math.max(left_depth, right_depth) + 1;	
+}
+```
 
